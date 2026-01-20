@@ -36,6 +36,20 @@ jobs:
       - name: Cap Sync
         run: npx cap sync android
 
+      - name: Fix Capacitor Plugin Gradle Files
+        run: |
+          # Fix namespace and Java version in capacitor-cordova-android-plugins
+          PLUGIN_GRADLE="android/capacitor-cordova-android-plugins/build.gradle"
+          if [ -f "$PLUGIN_GRADLE" ]; then
+            # Add namespace if missing
+            if ! grep -q 'namespace' "$PLUGIN_GRADLE"; then
+              sed -i '/android {/a\    namespace = "capacitor.cordova.android.plugins"' "$PLUGIN_GRADLE"
+            fi
+            # Fix Java version to 17
+            sed -i 's/VERSION_21/VERSION_17/g' "$PLUGIN_GRADLE"
+            echo "Fixed $PLUGIN_GRADLE"
+          fi
+
       - name: Build with Gradle
         run: |
           cd android
