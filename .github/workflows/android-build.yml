@@ -57,6 +57,15 @@ jobs:
           rm -f android/app/src/main/res/mipmap-anydpi-v26/ic_launcher_round.xml || true
           echo "Removed duplicate adaptive icon resources"
 
+      - name: Fix AndroidManifest Package Conflict
+        run: |
+          # Remove package attribute from capacitor plugin AndroidManifest.xml
+          MANIFEST="android/capacitor-cordova-android-plugins/src/main/AndroidManifest.xml"
+          if [ -f "$MANIFEST" ]; then
+            sed -i 's/package="[^"]*"//g' "$MANIFEST"
+            echo "Removed package attribute from $MANIFEST"
+          fi
+
       - name: Build with Gradle
         run: |
           cd android
