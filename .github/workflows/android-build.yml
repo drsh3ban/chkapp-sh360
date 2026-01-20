@@ -75,13 +75,13 @@ jobs:
       - name: Upload APK
         uses: actions/upload-artifact@v4
         with:
-          name: AutoCheck_Pro_v1.0.7_Debug
+          name: AutoCheck_Pro_v1.1.0_Final
           path: android/app/build/outputs/apk/debug/app-debug.apk
           retention-days: 7
 
       - name: Firebase App Distribution
         uses: w9jds/firebase-action@master
         with:
-          args: appdistribution:distribute android/app/build/outputs/apk/debug/app-debug.apk --app ${{ secrets.Secret1 }} --groups "testers"
+          args: appdistribution:distribute android/app/build/outputs/apk/debug/app-debug.apk --app "${{ secrets.Secret1 }}" --groups "testers"
         env:
           FIREBASE_TOKEN: ${{ secrets.Secret2 }}
