@@ -1,5 +1,5 @@
 import { Preferences } from '@capacitor/preferences';
-import { NativeBiometric } from '@capacitor-community/native-biometric';
+import { NativeBiometric } from 'capacitor-native-biometric';
 
 /**
  * Biometric Authentication Service
