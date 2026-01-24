@@ -1,6 +1,6 @@
 import { createStore } from './index'
 import { ImageStorageService } from '../services/imageStorage'
-import { FTPService } from '../services/ftpStorage'
+import { FirestoreService } from '../services/firestoreService'
 
 // Migration: Clear large base64 strings from historical movements to free up localStorage
 const migrateMovements = (movements) => {
@@ -106,7 +106,7 @@ export const movementsActions = {
         const savedExitPhotos = await savePhotos(exitData.exitPhotos, 'exit');
 
         const movement = {
-            id: Date.now(),
+            id: String(Date.now()),
             ...exitData,
             exitPhotos: savedExitPhotos, // Store paths instead of base64
             exitTime: new Date().toISOString(),
@@ -121,19 +121,33 @@ export const movementsActions = {
             movements: [...state.movements, movement]
         }))
 
-        // Optional Firebase Sync
-        if (localStorage.getItem('firebase_enabled') === 'true') {
-            Promise.all(movement.exitPhotos.map(async (photoPath) => {
+        // Auto Firebase Sync - Always enabled (Photos + Movement Data)
+        // Upload photos in background
+        const uploadedUrls = [];
+        Promise.all(movement.exitPhotos.map(async (photoPath) => {
+            try {
                 const base64 = await ImageStorageService.readAsBase64(photoPath);
                 if (base64) {
-                    const fileName = photoPath.split('/').pop() || `exit_${Date.now()}.jpg`;
-                    return ImageStorageService.uploadToFirebase(base64, fileName);
+                    const fileName = `exit_${movement.id}_${Date.now()}.jpg`;
+                    const url = await ImageStorageService.uploadToFirebase(base64, fileName);
+                    uploadedUrls.push(url);
+                    return url;
                 }
-            })).catch(e => console.warn('Background Firebase sync failed:', e));
-        }
-
-        // Optional FTP Sync
-        FTPService.syncMovement(movement).catch(e => console.warn('Background FTP sync failed:', e));
+            } catch (e) {
+                console.warn('Photo upload failed:', e);
+            }
+        })).then(async () => {
+            // Save movement to Firestore with uploaded photo URLs
+            try {
+                await FirestoreService.saveMovement({
+                    ...movement,
+                    exitPhotoUrls: uploadedUrls
+                });
+                console.log('Movement synced to Firestore');
+            } catch (e) {
+                console.warn('Firestore sync failed:', e);
+            }
+        }).catch(e => console.warn('Background Firebase sync failed:', e));
 
         return movement
     },
@@ -144,7 +158,7 @@ export const movementsActions = {
 
         const state = movementsStore.getState();
         const updatedMovements = state.movements.map(m =>
-            m.id === movementId
+            String(m.id) === String(movementId)
                 ? {
                     ...m,
                     ...returnData,
@@ -159,27 +173,44 @@ export const movementsActions = {
             movements: updatedMovements
         });
 
-        // Optional Firebase Sync
-        if (localStorage.getItem('firebase_enabled') === 'true' && updatedMovement) {
-            const photosToUpload = updatedMovement.returnPhotos || [];
-            Promise.all(photosToUpload.map(async (photoPath) => {
-                const base64 = await ImageStorageService.readAsBase64(photoPath);
-                if (base64) {
-                    const fileName = photoPath.split('/').pop() || `return_${Date.now()}.jpg`;
-                    return ImageStorageService.uploadToFirebase(base64, fileName);
-                }
-            })).catch(e => console.warn('Background Firebase sync failed:', e));
-        }
+        // Get the updated movement for sync
+        const updatedMovement = updatedMovements.find(m => String(m.id) === String(movementId));
 
-        // Optional FTP Sync
+        // Auto Firebase Sync - Always enabled (Photos + Movement Data)
         if (updatedMovement) {
-            FTPService.syncMovement(updatedMovement).catch(e => console.warn('Background FTP sync failed:', e));
+            const photosToUpload = updatedMovement.returnPhotos || [];
+            const uploadedUrls = [];
+
+            Promise.all(photosToUpload.map(async (photoPath) => {
+                try {
+                    const base64 = await ImageStorageService.readAsBase64(photoPath);
+                    if (base64) {
+                        const fileName = `return_${movementId}_${Date.now()}.jpg`;
+                        const url = await ImageStorageService.uploadToFirebase(base64, fileName);
+                        uploadedUrls.push(url);
+                        return url;
+                    }
+                } catch (e) {
+                    console.warn('Photo upload failed:', e);
+                }
+            })).then(async () => {
+                // Save movement to Firestore with uploaded photo URLs
+                try {
+                    await FirestoreService.saveMovement({
+                        ...updatedMovement,
+                        returnPhotoUrls: uploadedUrls
+                    });
+                    console.log('Return movement synced to Firestore');
+                } catch (e) {
+                    console.warn('Firestore sync failed:', e);
+                }
+            }).catch(e => console.warn('Background Firebase sync failed:', e));
         }
     },
 
     deleteMovement: (id) => {
         movementsStore.setState((state) => ({
-            movements: state.movements.filter(m => m.id !== id)
+            movements: state.movements.filter(m => String(m.id) !== String(id))
         }))
     },
 
@@ -189,7 +220,7 @@ export const movementsActions = {
 
     getMovementByCarId: (carId) => {
         return movementsStore.getState().movements.find(
-            m => m.carId === carId && m.status === 'active'
+            m => String(m.carId) === String(carId) && m.status === 'active'
         )
     },
 
@@ -197,5 +228,32 @@ export const movementsActions = {
         movementsStore.setState((state) => ({
             movements: state.movements.filter(m => m.status === 'active')
         }))
+    },
+
+    /**
+     * Update movement with AI report data
+     * @param {string} movementId - The movement ID to update
+     * @param {Object} reportData - { exitConditionReport, returnConditionReport, damageComparisonReport }
+     */
+    updateAIReport: async (movementId, reportData) => {
+        const state = movementsStore.getState();
+        const updatedMovements = state.movements.map(m =>
+            String(m.id) === String(movementId)
+                ? { ...m, aiReports: { ...(m.aiReports || {}), ...reportData } }
+                : m
+        );
+
+        movementsStore.setState({ movements: updatedMovements });
+
+        // Sync to Firestore
+        const updatedMovement = updatedMovements.find(m => String(m.id) === String(movementId));
+        if (updatedMovement) {
+            try {
+                await FirestoreService.saveMovement(updatedMovement);
+                console.log('AI Report synced to Firestore');
+            } catch (e) {
+                console.warn('Firestore AI report sync failed:', e);
+            }
+        }
     }
 }

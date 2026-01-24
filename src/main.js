@@ -1,6 +1,7 @@
 import './styles/main.css'
 import { initializeApp } from './app'
 import { Toast } from './components/Toast'
+import { FirebaseSyncService } from './services/firebaseSyncService'
 
 // Initialize app
 // DEBUG: Global Error Handler for Android
@@ -12,11 +13,32 @@ window.onerror = function (msg, url, line, col, error) {
     return false;
 };
 
-document.addEventListener('DOMContentLoaded', () => {
+document.addEventListener('DOMContentLoaded', async () => {
     Toast.init()
+
+    // Load data from Firebase on startup
+    try {
+        const syncResult = await FirebaseSyncService.initializeSync();
+        if (syncResult && (syncResult.cars > 0 || syncResult.movements > 0)) {
+            Toast.success(`تم استعادة البيانات: ${syncResult.cars} سيارة، ${syncResult.movements} حركة`, 5000);
+        }
+    } catch (e) {
+        console.warn('Firebase sync on startup failed:', e);
+    }
+
     initializeApp()
     registerServiceWorker()
     setupConnectivityListeners()
+
+    // Hide splash screen with a smooth transition
+    setTimeout(() => {
+        const splash = document.getElementById('splash-screen');
+        if (splash) {
+            splash.classList.add('fade-out');
+            // Remove from DOM after transition
+            setTimeout(() => splash.remove(), 600);
+        }
+    }, 1200); // 1.2s delay to show off the premium brand
 })
 
 function registerServiceWorker() {

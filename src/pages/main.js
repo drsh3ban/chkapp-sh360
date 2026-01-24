@@ -33,7 +33,7 @@ export function renderMainApp(container) {
     renderHeader(document.getElementById('header'))
 
     // Set initial section based on role
-    const initialSection = role === 'admin' ? 'dashboard' : 'exit'
+    const initialSection = 'dashboard'
     // alert(`Debug: InitialSection=${initialSection}`);
     uiActions.setActiveSection(initialSection)
 

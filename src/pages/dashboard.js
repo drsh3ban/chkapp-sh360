@@ -1,5 +1,6 @@
 import { carsStore } from '../store/carsStore'
 import { movementsStore } from '../store/movementsStore'
+import { uiActions } from '../store/uiStore'
 import { formatTime, formatDate } from '../utils/helpers'
 import Chart from 'chart.js/auto'
 
@@ -13,6 +14,29 @@ export function renderDashboard(container) {
             <i class="fas fa-download"></i> نسخة احتياطية
           </button>
         </div>
+      </div>
+      
+      <!-- Quick Actions for Guards -->
+      <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+        <button id="quickExitBtn" class="bg-gradient-to-br from-orange-400 to-orange-600 text-white p-6 rounded-3xl shadow-lg shadow-orange-200 hover:shadow-orange-300 transform hover:-translate-y-1 transition-all flex items-center justify-between group">
+          <div class="text-right">
+            <h3 class="text-2xl font-bold mb-1">تسجيل خروج</h3>
+            <p class="text-orange-100 text-sm opacity-90">تسجيل مغادرة سيارة جديدة</p>
+          </div>
+          <div class="w-16 h-16 rounded-2xl bg-white/20 flex items-center justify-center text-3xl group-hover:scale-110 transition-transform">
+            <i class="fas fa-sign-out-alt"></i>
+          </div>
+        </button>
+
+        <button id="quickEntryBtn" class="bg-gradient-to-br from-emerald-400 to-emerald-600 text-white p-6 rounded-3xl shadow-lg shadow-emerald-200 hover:shadow-emerald-300 transform hover:-translate-y-1 transition-all flex items-center justify-between group">
+          <div class="text-right">
+            <h3 class="text-2xl font-bold mb-1">تسجيل عودة</h3>
+            <p class="text-emerald-100 text-sm opacity-90">تسجيل عودة سيارة للمقر</p>
+          </div>
+          <div class="w-16 h-16 rounded-2xl bg-white/20 flex items-center justify-center text-3xl group-hover:scale-110 transition-transform">
+            <i class="fas fa-sign-in-alt"></i>
+          </div>
+        </button>
       </div>
       
       <!-- Stats Grid -->
@@ -97,6 +121,16 @@ export function renderDashboard(container) {
   const unsubCars = carsStore.subscribe(updateDashboardStats)
   const unsubMovements = movementsStore.subscribe(updateDashboardStats)
 
+  // Quick Actions Listeners
+  const quickExitBtn = document.getElementById('quickExitBtn')
+  const quickEntryBtn = document.getElementById('quickEntryBtn')
+
+  const handleQuickExit = () => uiActions.setActiveSection('exit')
+  const handleQuickEntry = () => uiActions.setActiveSection('entry')
+
+  if (quickExitBtn) quickExitBtn.addEventListener('click', handleQuickExit)
+  if (quickEntryBtn) quickEntryBtn.addEventListener('click', handleQuickEntry)
+
   // Backup listener
   const exportBtn = document.getElementById('exportDataBtn')
   const handleExport = handleExportData // Reference to function for removal
@@ -112,6 +146,9 @@ export function renderDashboard(container) {
     if (exportBtn) {
       exportBtn.removeEventListener('click', handleExport)
     }
+    if (quickExitBtn) quickExitBtn.removeEventListener('click', handleQuickExit)
+    if (quickEntryBtn) quickEntryBtn.removeEventListener('click', handleQuickEntry)
+
     if (fleetChartInstance) {
       fleetChartInstance.destroy()
       fleetChartInstance = null
@@ -172,9 +209,9 @@ function updateDashboardStats() {
   }
 
   tbody.innerHTML = recentMovements.map(m => {
-    const car = cars.find(c => c.id === m.carId)
+    const car = cars.find(c => String(c.id) === String(m.carId))
     const isCompleted = m.status === 'completed'
-    const typeText = isCompleted ? 'عودة' : 'خروج'
+    const typeText = isCompleted ? 'تشييك عودة' : 'تشييك خروج'
     const typeClass = isCompleted
       ? 'bg-emerald-100 text-emerald-700'
       : 'bg-orange-100 text-orange-700'

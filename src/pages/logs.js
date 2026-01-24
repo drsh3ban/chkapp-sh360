@@ -1,6 +1,6 @@
 import { carsStore } from '../store/carsStore'
 import { movementsStore, movementsActions } from '../store/movementsStore'
-import { FTPService } from '../services/ftpStorage'
+import { FirestoreService } from '../services/firestoreService'
 import { formatDateTime, formatTime, calculateDistance } from '../utils/helpers'
 import { authStore } from '../store/authStore'
 import { Toast } from '../components/Toast'
@@ -10,35 +10,53 @@ import { ImageStorageService } from '../services/imageStorage'
 export function renderLogs(container) {
   container.innerHTML = `
     <div class="space-y-6 animate-fade-in">
-      <div class="flex flex-col md:flex-row justify-between items-center bg-white p-6 rounded-3xl shadow-sm border border-slate-100 gap-4">
-        <h3 class="text-xl font-bold flex items-center gap-2 text-slate-800">
-          <i class="fas fa-history text-primary-500"></i>
-          سجل الحركات الشامل
-        </h3>
-        <div class="flex flex-wrap gap-3 w-full md:w-auto">
-          <div class="relative flex-1 md:w-48">
-            <i class="fas fa-search absolute right-3 top-3 text-slate-400"></i>
+      <div class="flex flex-col space-y-4 bg-white p-6 rounded-3xl shadow-sm border border-slate-100">
+        <div class="flex flex-col md:flex-row justify-between items-center gap-4">
+          <h3 class="text-xl font-bold flex items-center gap-2 text-slate-800">
+            <i class="fas fa-history text-primary-500"></i>
+            سجل الحركات الشامل
+          </h3>
+          <div class="flex flex-wrap gap-2 role-admin">
+            <button id="clearLogsBtn" class="bg-red-50 text-red-600 px-4 py-2 rounded-xl hover:bg-red-100 text-xs font-bold border border-red-100 transition flex items-center gap-2">
+              <i class="fas fa-trash-alt"></i> مسح المكتمل
+            </button>
+            <button id="syncAllFtpBtn" class="bg-primary-50 text-primary-600 px-4 py-2 rounded-xl hover:bg-primary-100 text-xs font-bold border border-primary-100 transition flex items-center gap-2">
+              <i class="fas fa-sync"></i> مزامنة الكل
+            </button>
+          </div>
+        </div>
+
+        <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-3">
+          <!-- Main Search -->
+          <div class="relative">
+            <i class="fas fa-search absolute right-3 top-3.5 text-slate-400"></i>
             <input type="text" id="searchLogs" placeholder="رقم اللوحة، الموديل، العقد..." 
-              class="w-full p-2.5 pr-10 border border-slate-200 rounded-xl focus:ring-2 focus:ring-primary-500 outline-none transition bg-slate-50 text-sm">
+              class="w-full p-3 pr-10 border border-slate-200 rounded-xl focus:ring-2 focus:ring-primary-500 outline-none transition bg-slate-50 text-sm">
           </div>
-          <div class="relative w-full md:w-40">
-            <i class="fas fa-calendar-alt absolute right-3 top-3 text-slate-400"></i>
+
+          <!-- Date Filter -->
+          <div class="relative">
+            <i class="fas fa-calendar-alt absolute right-3 top-3.5 text-slate-400"></i>
             <input type="date" id="searchDate" 
-              class="w-full p-2.5 pr-10 border border-slate-200 rounded-xl focus:ring-2 focus:ring-primary-500 outline-none transition bg-slate-50 text-sm">
+              class="w-full p-3 pr-10 border border-slate-200 rounded-xl focus:ring-2 focus:ring-primary-500 outline-none transition bg-slate-50 text-sm">
           </div>
-          <select id="filterType" class="p-2.5 border border-slate-200 rounded-xl focus:ring-2 focus:ring-primary-500 outline-none transition bg-slate-50 text-sm font-medium">
-            <option value="all">الكل</option>
+
+          <!-- Status Filter -->
+          <select id="filterType" class="p-3 border border-slate-200 rounded-xl focus:ring-2 focus:ring-primary-500 outline-none transition bg-slate-50 text-sm font-medium">
+            <option value="all">كل الحالات</option>
             <option value="completed">مكتملة</option>
             <option value="active">في الخارج</option>
           </select>
-          <div class="role-admin">
-            <button id="clearLogsBtn" class="bg-red-50 text-red-600 px-4 py-2.5 rounded-xl hover:bg-red-100 text-sm font-bold border border-red-100 transition flex items-center gap-2">
-              <i class="fas fa-trash-alt"></i> مسح المكتمل
-            </button>
-          </div>
-          <button id="syncAllFtpBtn" class="bg-primary-50 text-primary-600 px-4 py-2.5 rounded-xl hover:bg-primary-100 text-sm font-bold border border-primary-100 transition flex items-center gap-2">
-            <i class="fas fa-sync"></i> مزامنة الكل
-          </button>
+
+          <!-- Car Model Filter -->
+          <select id="filterModel" class="p-3 border border-slate-200 rounded-xl focus:ring-2 focus:ring-primary-500 outline-none transition bg-slate-50 text-sm font-medium">
+            <option value="all">كل الموديلات</option>
+          </select>
+
+          <!-- Guard/User Filter -->
+          <select id="filterGuard" class="p-3 border border-slate-200 rounded-xl focus:ring-2 focus:ring-primary-500 outline-none transition bg-slate-50 text-sm font-medium">
+            <option value="all">كل الحراس</option>
+          </select>
         </div>
       </div>
 
@@ -53,6 +71,8 @@ export function renderLogs(container) {
   document.getElementById('searchLogs').addEventListener('input', renderMovementLogs)
   document.getElementById('searchDate').addEventListener('input', renderMovementLogs)
   document.getElementById('filterType').addEventListener('change', renderMovementLogs)
+  document.getElementById('filterModel').addEventListener('change', renderMovementLogs)
+  document.getElementById('filterGuard').addEventListener('change', renderMovementLogs)
 
   // Setup clear button
   const clearBtn = document.getElementById('clearLogsBtn')
@@ -63,9 +83,51 @@ export function renderLogs(container) {
   // Setup FTP Sync All
   document.getElementById('syncAllFtpBtn')?.addEventListener('click', handleSyncAllFtp)
 
+  // Initial populate filters
+  populateFilterOptions()
+
   // Subscribe to changes
-  movementsStore.subscribe(renderMovementLogs)
-  carsStore.subscribe(renderMovementLogs)
+  movementsStore.subscribe(() => {
+    populateFilterOptions()
+    renderMovementLogs()
+  })
+  carsStore.subscribe(() => {
+    populateFilterOptions()
+    renderMovementLogs()
+  })
+}
+
+function populateFilterOptions() {
+  const modelSelect = document.getElementById('filterModel')
+  const guardSelect = document.getElementById('filterGuard')
+  if (!modelSelect || !guardSelect) return
+
+  const { cars } = carsStore.getState()
+  const { movements } = movementsStore.getState()
+
+  // Populate Models
+  const models = [...new Set(cars.map(c => c.model))].sort()
+  const currentModel = modelSelect.value
+  modelSelect.innerHTML = '<option value="all">كل الموديلات</option>'
+  models.forEach(m => {
+    const opt = document.createElement('option')
+    opt.value = m
+    opt.textContent = m
+    modelSelect.appendChild(opt)
+  })
+  modelSelect.value = currentModel || 'all'
+
+  // Populate Guards (unique names from movements)
+  const guards = [...new Set(movements.map(m => m.user || 'Unknown'))].sort()
+  const currentGuard = guardSelect.value
+  guardSelect.innerHTML = '<option value="all">كل الحراس</option>'
+  guards.forEach(g => {
+    const opt = document.createElement('option')
+    opt.value = g
+    opt.textContent = g
+    guardSelect.appendChild(opt)
+  })
+  guardSelect.value = currentGuard || 'all'
 }
 
 function renderMovementLogs() {
@@ -77,6 +139,8 @@ function renderMovementLogs() {
   const searchTerm = document.getElementById('searchLogs')?.value.toLowerCase() || ''
   const searchDate = document.getElementById('searchDate')?.value || ''
   const filterType = document.getElementById('filterType')?.value || 'all'
+  const filterModel = document.getElementById('filterModel')?.value || 'all'
+  const filterGuard = document.getElementById('filterGuard')?.value || 'all'
 
   // Filter and sort movements
   let filteredMovements = movements
@@ -88,15 +152,29 @@ function renderMovementLogs() {
     )
   }
 
+  // Model Filter
+  if (filterModel !== 'all') {
+    filteredMovements = filteredMovements.filter(m => {
+      const car = cars.find(c => String(c.id) === String(m.carId))
+      return car && car.model === filterModel
+    })
+  }
+
+  // Guard Filter
+  if (filterGuard !== 'all') {
+    filteredMovements = filteredMovements.filter(m => (m.user || 'Unknown') === filterGuard)
+  }
+
   // Search Filter
   if (searchTerm) {
     filteredMovements = filteredMovements.filter(m => {
-      const car = cars.find(c => c.id === m.carId)
+      const car = cars.find(c => String(c.id) === String(m.carId))
       return (
         (car && car.plate.toLowerCase().includes(searchTerm)) ||
         (car && car.model.toLowerCase().includes(searchTerm)) ||
         (m.driver && m.driver.toLowerCase().includes(searchTerm)) ||
-        (m.id.toString().includes(searchTerm))
+        (m.user && m.user.toLowerCase().includes(searchTerm)) ||
+        (String(m.id).includes(searchTerm))
       )
     })
   }
@@ -133,12 +211,16 @@ function renderMovementLogs() {
   // Attach PDF listeners
   container.querySelectorAll('.download-pdf-btn').forEach(btn => {
     btn.addEventListener('click', (e) => {
-      const id = parseInt(btn.dataset.movementId)
-      const movement = movements.find(m => m.id === id)
-      const car = cars.find(c => c.id === movement.carId)
+      const id = btn.dataset.movementId
+      const movement = movements.find(m => String(m.id) === String(id))
+      const car = movement ? cars.find(c => String(c.id) === String(movement.carId)) : null
       if (movement && car) {
         Toast.info('جاري تحضير تقرير PDF...')
         generateMovementReport(movement, car)
+      } else if (movement && !car) {
+        // Fallback for missing car data
+        Toast.info('جاري تحضير تقرير PDF...')
+        generateMovementReport(movement, { model: 'مركبة محذوفة', plate: '---' })
       }
     })
   })
@@ -146,8 +228,8 @@ function renderMovementLogs() {
   // Attach FTP Sync listeners
   container.querySelectorAll('.sync-ftp-btn').forEach(btn => {
     btn.addEventListener('click', async (e) => {
-      const id = parseInt(btn.dataset.movementId)
-      const movement = movements.find(m => m.id === id)
+      const id = btn.dataset.movementId
+      const movement = movements.find(m => String(m.id) === String(id))
       if (movement) {
         await handleSyncSingleFtp(movement, btn)
       }
@@ -156,23 +238,27 @@ function renderMovementLogs() {
 }
 
 function renderMovementCard(movement, cars, index) {
-  const car = cars.find(c => c.id === movement.carId)
+  const car = cars.find(c => String(c.id) === String(movement.carId))
   const carName = car ? `${car.model} (${car.plate})` : 'مركبة محذوفة'
   const isCompleted = movement.status === 'completed'
   const distance = isCompleted ? calculateDistance(movement.exitMileage, movement.returnMileage) : 0
 
   return `
     <div class="bg-white rounded-3xl shadow-lg shadow-slate-200/50 border border-slate-100 overflow-hidden hover:shadow-xl transition-all duration-300 group">
-      <div class="flex justify-between items-center px-6 py-4 ${isCompleted ? 'bg-slate-800' : 'bg-gradient-to-r from-primary-600 to-primary-500'} text-white">
-        <div class="font-bold flex items-center gap-3 text-lg">
-          <span class="bg-white/20 text-white w-8 h-8 rounded-full flex items-center justify-center text-xs border border-white/20 group-hover:scale-110 transition-transform">
+      <div class="flex flex-col px-6 py-4 ${isCompleted ? 'bg-slate-800' : 'bg-gradient-to-r from-primary-600 to-primary-500'} text-white">
+        <!-- Row 1: Car Info (Inline) -->
+        <div class="font-bold flex items-center gap-2 text-base mb-2 flex-wrap">
+          <span class="bg-white/20 text-white w-7 h-7 rounded-full flex-shrink-0 flex items-center justify-center text-xs border border-white/20">
             ${index}
           </span>
-          <div class="bg-white/10 p-2 rounded-xl backdrop-blur-md hidden sm:block"><i class="fas fa-car-side text-sm"></i></div>
-          <span class="truncate">${carName}</span>
+          <i class="fas fa-car-side text-sm opacity-70"></i>
+          <span class="font-bold whitespace-nowrap">${car ? car.model : 'مركبة محذوفة'}</span>
+          <span class="text-xs opacity-70 font-mono bg-white/10 px-2 py-0.5 rounded">${car ? car.plate : '---'}</span>
         </div>
-        <div class="flex items-center gap-3">
-            <div class="flex items-center -space-x-2 space-x-reverse">
+        
+        <!-- Row 2: Buttons -->
+        <div class="flex items-center justify-between">
+            <div class="flex items-center gap-2">
                 <button 
                   data-movement-id="${movement.id}"
                   class="download-pdf-btn bg-white/10 hover:bg-white text-white hover:text-primary-600 p-2.5 rounded-xl backdrop-blur-md transition-all border border-white/20 hover:border-white shadow-sm"
@@ -257,22 +343,228 @@ function renderMovementCard(movement, cars, index) {
           `}
         </div>
       </div>
+      
+      ${movement.aiReports ? renderAIReportSection(movement) : ''}
     </div>
   `
 }
 
 function renderFuelBar(val, color) {
   const pct = parseInt(val) || 0
-  const bgClass = color === 'orange' ? 'bg-orange-500' : 'bg-emerald-500'
-  const textClass = pct > 50 ? 'text-white' : 'text-slate-600'
+  const gradientClass = color === 'orange' ? 'from-orange-500 to-amber-500' : 'from-emerald-500 to-teal-500'
+  const textClass = pct > 50 ? 'text-white drop-shadow-md' : 'text-slate-600'
 
   return `
-    <div class="w-full h-4 bg-slate-100 rounded-lg overflow-hidden flex items-center relative border border-slate-200">
-      <div class="${bgClass} h-full transition-all duration-500" style="width: ${pct}%"></div>
-      <span class="absolute inset-0 flex items-center justify-center text-[10px] font-bold ${textClass}">${pct}%</span>
+    <div class="relative w-full h-5 bg-slate-100 rounded-full overflow-hidden border border-slate-200 shadow-inner">
+      <!-- Grid Lines / Ticks -->
+      <div class="absolute inset-0 w-full h-full z-0 flex justify-between px-[1%]">
+        <div class="w-px h-full bg-slate-300/50" style="margin-left: 25%"></div>
+        <div class="w-px h-full bg-slate-300/80" style="margin-left: 25%"></div>
+        <div class="w-px h-full bg-slate-300/50" style="margin-left: 25%"></div>
+      </div>
+
+      <!-- Fill Bar -->
+      <div class="absolute top-0 left-0 h-full bg-gradient-to-r ${gradientClass} transition-all duration-700 ease-out z-10 relative" style="width: ${pct}%">
+        <div class="absolute top-0 w-full h-[1px] bg-white/30"></div> <!-- Highlight -->
+      </div>
+
+      <!-- Text -->
+      <span class="absolute inset-0 flex items-center justify-center text-[10px] font-black tracking-wider z-20 ${textClass}">${pct}%</span>
     </div>
   `
 }
+
+/**
+ * Render AI Report Section for movement card
+ */
+function renderAIReportSection(movement) {
+  const reports = movement.aiReports || {};
+  const exitCondition = reports.exitCondition;
+  const returnCondition = reports.returnCondition;
+  const comparison = reports.comparison;
+
+  // Determine overall status
+  const hasNewDamage = comparison && comparison.totalNewDamages > 0;
+  const exitIssues = exitCondition?.totalIssues || 0;
+  const returnIssues = returnCondition?.totalIssues || 0;
+
+  const severityBg = hasNewDamage
+    ? (comparison.overallSeverity === 'major' ? 'bg-red-50 border-red-200' : 'bg-amber-50 border-amber-200')
+    : 'bg-blue-50 border-blue-200';
+
+  const severityIcon = hasNewDamage
+    ? '<i class="fas fa-exclamation-triangle text-red-500"></i>'
+    : '<i class="fas fa-shield-check text-emerald-500"></i>';
+
+  return `
+    <div class="px-6 py-4 ${severityBg} border-t">
+      <div class="flex items-center justify-between mb-3">
+        <h4 class="font-bold text-slate-700 flex items-center gap-2">
+          <i class="fas fa-robot text-blue-500"></i>
+          تقرير الذكاء الاصطناعي
+        </h4>
+        <button 
+          onclick="window.showFullAIReport('${movement.id}')"
+          class="text-xs bg-white px-3 py-1.5 rounded-lg border border-slate-200 hover:bg-slate-50 transition text-slate-600 font-bold"
+        >
+          <i class="fas fa-expand-alt ml-1"></i> عرض التفاصيل
+        </button>
+      </div>
+      
+      <div class="grid grid-cols-3 gap-3 text-sm">
+        <div class="bg-white p-3 rounded-xl border border-orange-100 shadow-sm text-center">
+          <div class="text-[10px] uppercase font-bold text-slate-400 mb-1">بيان الخروج</div>
+          <div class="font-bold ${exitIssues > 0 ? 'text-amber-600' : 'text-emerald-600'}">${exitIssues} ملاحظات</div>
+        </div>
+        <div class="bg-white p-3 rounded-xl border border-emerald-100 shadow-sm text-center">
+          <div class="text-[10px] uppercase font-bold text-slate-400 mb-1">بيان العودة</div>
+          <div class="font-bold ${returnIssues > 0 ? 'text-amber-600' : 'text-emerald-600'}">${returnIssues} ملاحظات</div>
+        </div>
+        <div class="bg-white p-3 rounded-xl border ${hasNewDamage ? 'border-red-200' : 'border-emerald-100'} shadow-sm text-center">
+          <div class="text-[10px] uppercase font-bold text-slate-400 mb-1">أضرار جديدة</div>
+          <div class="font-bold flex items-center justify-center gap-1 ${hasNewDamage ? 'text-red-600' : 'text-emerald-600'}">
+            ${severityIcon}
+            ${hasNewDamage ? comparison.totalNewDamages : 0}
+          </div>
+        </div>
+      </div>
+      
+      ${hasNewDamage ? `
+        <div class="mt-3 p-3 bg-red-100 rounded-xl border border-red-200 text-red-800 text-sm">
+          <strong>⚠️ تنبيه:</strong> تم اكتشاف ${comparison.totalNewDamages} ضرر جديد
+          ${comparison.overallSeverity === 'major' ? '(درجة الخطورة: كبير)' : '(درجة الخطورة: بسيط)'}
+        </div>
+      ` : ''}
+    </div>
+  `;
+}
+
+/**
+ * Show full AI report modal - Called from onclick
+ */
+window.showFullAIReport = function (movementId) {
+  const { movements } = movementsStore.getState();
+  const movement = movements.find(m => String(m.id) === String(movementId));
+
+  if (!movement || !movement.aiReports) {
+    Toast.warning('لا يوجد تقرير AI متاح');
+    return;
+  }
+
+  const reports = movement.aiReports;
+  const exitCondition = reports.exitCondition;
+  const returnCondition = reports.returnCondition;
+  const comparison = reports.comparison;
+
+  const modal = document.createElement('div');
+  modal.id = 'fullAIReportModal';
+  modal.className = 'fixed inset-0 z-[100] bg-slate-900/90 backdrop-blur-md flex items-center justify-center p-4 animate-fade-in';
+
+  modal.innerHTML = `
+    <div class="bg-white rounded-3xl shadow-2xl max-w-2xl w-full max-h-[85vh] overflow-hidden flex flex-col">
+      <div class="bg-gradient-to-r from-blue-600 to-indigo-600 p-6 text-white flex-shrink-0">
+        <h3 class="text-xl font-bold flex items-center gap-3">
+          <i class="fas fa-robot"></i>
+          تقرير الذكاء الاصطناعي الكامل
+        </h3>
+        <p class="text-sm opacity-80 mt-1">حركة رقم: ${movementId}</p>
+      </div>
+      
+      <div class="p-6 overflow-y-auto flex-1 space-y-6">
+        <!-- Exit Condition -->
+        ${exitCondition ? `
+          <div class="border border-orange-200 rounded-xl overflow-hidden">
+            <div class="bg-orange-50 px-4 py-3 border-b border-orange-200">
+              <h4 class="font-bold text-orange-800 flex items-center gap-2">
+                <i class="fas fa-sign-out-alt"></i> بيان حالة الخروج
+              </h4>
+              <p class="text-xs text-slate-500 mt-1">الحالة العامة: ${exitCondition.overallCondition || 'غير محدد'}</p>
+            </div>
+            <div class="p-4 space-y-2">
+              ${(exitCondition.findings || []).map(f => `
+                <div class="p-3 bg-slate-50 rounded-lg border border-slate-100">
+                  <div class="font-bold text-sm text-slate-700">${f.position}</div>
+                  ${f.issues && f.issues.length > 0
+      ? `<ul class="text-sm text-slate-600 mt-1 list-disc list-inside">${f.issues.map(i => `<li>${i}</li>`).join('')}</ul>`
+      : '<div class="text-sm text-emerald-600">✓ لا توجد ملاحظات</div>'
+    }
+                </div>
+              `).join('')}
+              <div class="mt-3 p-3 bg-orange-50 rounded-lg text-sm text-orange-800">
+                <strong>الملخص:</strong> ${exitCondition.summary || 'لا يوجد ملخص'}
+              </div>
+            </div>
+          </div>
+        ` : '<div class="p-4 bg-slate-50 rounded-xl text-slate-500 text-center">لم يتم تحليل حالة الخروج</div>'}
+
+        <!-- Return Condition -->
+        ${returnCondition ? `
+          <div class="border border-emerald-200 rounded-xl overflow-hidden">
+            <div class="bg-emerald-50 px-4 py-3 border-b border-emerald-200">
+              <h4 class="font-bold text-emerald-800 flex items-center gap-2">
+                <i class="fas fa-sign-in-alt"></i> بيان حالة العودة
+              </h4>
+              <p class="text-xs text-slate-500 mt-1">الحالة العامة: ${returnCondition.overallCondition || 'غير محدد'}</p>
+            </div>
+            <div class="p-4 space-y-2">
+              ${(returnCondition.findings || []).map(f => `
+                <div class="p-3 bg-slate-50 rounded-lg border border-slate-100">
+                  <div class="font-bold text-sm text-slate-700">${f.position}</div>
+                  ${f.issues && f.issues.length > 0
+        ? `<ul class="text-sm text-slate-600 mt-1 list-disc list-inside">${f.issues.map(i => `<li>${i}</li>`).join('')}</ul>`
+        : '<div class="text-sm text-emerald-600">✓ لا توجد ملاحظات</div>'
+      }
+                </div>
+              `).join('')}
+              <div class="mt-3 p-3 bg-emerald-50 rounded-lg text-sm text-emerald-800">
+                <strong>الملخص:</strong> ${returnCondition.summary || 'لا يوجد ملخص'}
+              </div>
+            </div>
+          </div>
+        ` : '<div class="p-4 bg-slate-50 rounded-xl text-slate-500 text-center">لم يتم تحليل حالة العودة</div>'}
+
+        <!-- Comparison -->
+        ${comparison ? `
+          <div class="border ${comparison.totalNewDamages > 0 ? 'border-red-200' : 'border-blue-200'} rounded-xl overflow-hidden">
+            <div class="${comparison.totalNewDamages > 0 ? 'bg-red-50 border-red-200' : 'bg-blue-50 border-blue-200'} px-4 py-3 border-b">
+              <h4 class="font-bold ${comparison.totalNewDamages > 0 ? 'text-red-800' : 'text-blue-800'} flex items-center gap-2">
+                <i class="fas fa-balance-scale"></i> تقرير المقارنة
+              </h4>
+            </div>
+            <div class="p-4">
+              ${comparison.totalNewDamages > 0 ? `
+                <div class="space-y-2">
+                  ${(comparison.newDamages || []).map(d => `
+                    <div class="p-3 ${d.severity === 'major' ? 'bg-red-50 border-red-200' : 'bg-amber-50 border-amber-200'} rounded-lg border">
+                      <div class="font-bold text-sm">${d.position}</div>
+                      <div class="text-sm mt-1">${d.description}</div>
+                      <div class="text-xs mt-2 opacity-70">الشدة: ${d.severity === 'major' ? 'كبير ⚠️' : 'بسيط'}</div>
+                    </div>
+                  `).join('')}
+                </div>
+              ` : `
+                <div class="text-center p-6">
+                  <i class="fas fa-check-circle text-5xl text-emerald-500 mb-3"></i>
+                  <div class="font-bold text-emerald-700 text-lg">لا توجد أضرار جديدة</div>
+                  <p class="text-slate-500 text-sm mt-1">السيارة عادت بنفس الحالة</p>
+                </div>
+              `}
+            </div>
+          </div>
+        ` : '<div class="p-4 bg-slate-50 rounded-xl text-slate-500 text-center">لم يتم إجراء المقارنة</div>'}
+      </div>
+
+      <div class="p-4 border-t border-slate-100 flex-shrink-0">
+        <button onclick="document.getElementById('fullAIReportModal').remove()" 
+                class="w-full bg-slate-800 text-white py-3 rounded-xl font-bold hover:bg-slate-700 transition">
+          إغلاق التقرير
+        </button>
+      </div>
+    </div>
+  `;
+
+  document.body.appendChild(modal);
+};
 
 function handleClearLogs() {
   const { role } = authStore.getState()
@@ -321,46 +613,99 @@ function renderPhotoGallery(photos, color) {
   `
 }
 
-// Global helper for image preview (enhanced version with zoom support)
+// Global helper for image preview with PINCH-TO-ZOOM
 window.openImageModal = (src) => {
   const modal = document.createElement('div')
   modal.id = 'imageZoomModal'
-  modal.className = 'fixed inset-0 z-[100] bg-slate-900/95 backdrop-blur-md flex items-center justify-center p-4 animate-fade-in touch-none'
+  modal.className = 'fixed inset-0 z-[100] bg-slate-900/95 backdrop-blur-md flex items-center justify-center p-4 animate-fade-in'
 
   modal.innerHTML = `
     <div class="relative w-full h-full flex items-center justify-center group">
-      <!-- Controls -->
+      <!-- Close Button -->
       <div class="absolute top-6 right-6 z-[110] flex gap-3">
-        <button class="bg-white/10 hover:bg-white/20 text-white w-12 h-12 rounded-full backdrop-blur-xl flex items-center justify-center transition-all border border-white/20 shadow-2xl" 
-                onclick="document.getElementById('imageZoomModal').remove()">
+        <button id="closeZoomModal" class="bg-white/10 hover:bg-white/20 text-white w-12 h-12 rounded-full backdrop-blur-xl flex items-center justify-center transition-all border border-white/20 shadow-2xl">
           <i class="fas fa-times text-xl"></i>
         </button>
       </div>
 
-      <!-- Image Container (Scrollable for zoom feel) -->
-      <div class="w-full h-full overflow-auto flex items-center justify-center custom-scrollbar p-8">
+      <!-- Zoomable Image Container -->
+      <div id="zoomContainer" class="w-full h-full overflow-hidden flex items-center justify-center touch-none">
         <img src="${src}" 
              id="zoomedImage"
-             class="max-w-full max-h-full object-contain rounded-2xl shadow-2xl transition-transform duration-300 cursor-zoom-in"
-             onclick="this.classList.toggle('max-w-none'); this.classList.toggle('max-h-none'); this.classList.toggle('cursor-zoom-out'); this.classList.toggle('cursor-zoom-in')"
+             class="max-w-full max-h-full object-contain rounded-2xl shadow-2xl transition-transform duration-100 origin-center"
+             draggable="false"
              alt="Zoomed view">
       </div>
 
       <!-- Hint -->
       <div class="absolute bottom-6 left-1/2 -translate-x-1/2 text-white/50 text-xs font-medium tracking-widest uppercase pointer-events-none">
-        Tap image to toggle full size
+        تكبير وتصغير بإصبعين
       </div>
     </div>
   `
 
-  // Close on backdrop click (if not clicking the image)
-  modal.onclick = (e) => {
-    if (e.target === modal || e.target.id === 'imageZoomModal' || e.target.classList.contains('overflow-auto')) {
-      modal.remove()
-    }
+  document.body.appendChild(modal)
+
+  // Setup pinch-to-zoom
+  const img = document.getElementById('zoomedImage')
+  const container = document.getElementById('zoomContainer')
+  let scale = 1
+  let lastDist = 0
+
+  const getDistance = (touches) => {
+    return Math.hypot(
+      touches[0].clientX - touches[1].clientX,
+      touches[0].clientY - touches[1].clientY
+    )
   }
 
-  document.body.appendChild(modal)
+  container.addEventListener('touchstart', (e) => {
+    if (e.touches.length === 2) {
+      e.preventDefault()
+      lastDist = getDistance(e.touches)
+    }
+  }, { passive: false })
+
+  container.addEventListener('touchmove', (e) => {
+    if (e.touches.length === 2) {
+      e.preventDefault()
+      const dist = getDistance(e.touches)
+      const delta = dist / lastDist
+      scale = Math.max(1, Math.min(scale * delta, 5)) // Clamp between 1x and 5x
+      img.style.transform = `scale(${scale})`
+      lastDist = dist
+    }
+  }, { passive: false })
+
+  container.addEventListener('touchend', (e) => {
+    if (e.touches.length < 2) {
+      lastDist = 0
+      // Snap back to 1x if nearly there
+      if (scale < 1.1) {
+        scale = 1
+        img.style.transform = 'scale(1)'
+      }
+    }
+  })
+
+  // Double-tap to reset
+  let lastTap = 0
+  container.addEventListener('click', (e) => {
+    const now = Date.now()
+    if (now - lastTap < 300) {
+      scale = scale > 1 ? 1 : 2.5
+      img.style.transform = `scale(${scale})`
+    }
+    lastTap = now
+  })
+
+  // Close button
+  document.getElementById('closeZoomModal').addEventListener('click', () => modal.remove())
+
+  // Close on backdrop click
+  modal.addEventListener('click', (e) => {
+    if (e.target === modal) modal.remove()
+  })
 }
 
 async function handleSyncSingleFtp(movement, btn) {
@@ -368,8 +713,8 @@ async function handleSyncSingleFtp(movement, btn) {
   try {
     btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i>';
     btn.disabled = true;
-    await FTPService.syncMovement(movement);
-    Toast.success('تمت المزامنة مع FTP بنجاح');
+    await FirestoreService.saveMovement(movement);
+    Toast.success('تمت المزامنة مع Firebase بنجاح');
     btn.innerHTML = '<i class="fas fa-check"></i>';
   } catch (error) {
     Toast.error('فشل المزامنة: ' + error.message);
@@ -381,20 +726,14 @@ async function handleSyncSingleFtp(movement, btn) {
 
 async function handleSyncAllFtp() {
   const { movements } = movementsStore.getState();
-  const config = FTPService.getConfig();
 
-  if (!config.enabled) {
-    Toast.warning('يجب تفعيل FTP من الإعدادات أولاً');
-    return;
-  }
-
-  if (confirm(`هل تريد مزامنة ${movements.length} حركة مع FTP؟`)) {
+  if (confirm(`هل تريد مزامنة ${movements.length} حركة مع Firebase؟`)) {
     Toast.info('جاري بدء المزامنة الشاملة...');
     let successCount = 0;
 
     for (const m of movements) {
       try {
-        await FTPService.syncMovement(m);
+        await FirestoreService.saveMovement(m);
         successCount++;
       } catch (e) {
         console.error('Failed sync for', m.id, e);

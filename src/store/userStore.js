@@ -1,35 +1,45 @@
 import { createStore } from './index'
 import { authStore } from './authStore'
+import { FirestoreService } from '../services/firestoreService'
+
+const savedUsers = localStorage.getItem('autocheck_users')
+let initialUsers = []
+try {
+    initialUsers = savedUsers ? JSON.parse(savedUsers) : []
+    if (!Array.isArray(initialUsers)) initialUsers = []
+} catch (e) {
+    console.error('Failed to parse users from localStorage', e)
+}
 
 const initialState = {
-    users: [],
+    users: initialUsers,
     loading: false,
     error: null
 }
 
 export const userStore = createStore(initialState)
 
+// Auto-save to localStorage
+userStore.subscribe((state) => {
+    localStorage.setItem('autocheck_users', JSON.stringify(state.users))
+})
+
 export const userActions = {
     fetchUsers: async () => {
         userStore.setState({ loading: true, error: null })
         try {
-            const token = authStore.getState().token
-            const response = await fetch(`${import.meta.env.VITE_API_URL}/api/users`, {
-                headers: {
-                    'Authorization': `Bearer ${token}`
-                }
-            })
-            const data = await response.json()
+            console.log('Fetching users from Firestore...');
+            const users = await FirestoreService.getUsers();
 
-            if (data.success) {
-                userStore.setState({ users: data.data, loading: false })
-                return true
+            if (users && users.length > 0) {
+                userStore.setState({ users, loading: false });
             } else {
-                userStore.setState({ error: data.message, loading: false })
-                return false
+                // If firestore empty, keep local but stop loading
+                userStore.setState({ loading: false });
             }
+            return true;
         } catch (e) {
-            userStore.setState({ error: 'Failed to fetch users', loading: false })
+            userStore.setState({ error: 'Failed to fetch users from cloud', loading: false })
             return false
         }
     },
@@ -37,13 +47,9 @@ export const userActions = {
     addUser: async (userData) => {
         userStore.setState({ loading: true, error: null })
 
-        // Mock Add User (Since backend is unavailable)
-        // Simulate network delay
-        await new Promise(resolve => setTimeout(resolve, 500));
-
         const currentUsers = userStore.getState().users;
         const newUser = {
-            id: Math.floor(Math.random() * 10000),
+            id: String(Date.now()),
             ...userData,
             created_at: new Date().toISOString()
         };
@@ -52,58 +58,61 @@ export const userActions = {
             users: [newUser, ...currentUsers],
             loading: false
         });
-        return true;
 
-        /* Backend Code (Disabled for Mock)
+        // Background sync to Firestore
         try {
-            const token = authStore.getState().token
-            const response = await fetch(`${import.meta.env.VITE_API_URL}/api/users`, {
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json',
-                    'Authorization': `Bearer ${token}`
-                },
-                body: JSON.stringify(userData)
-            })
-            const data = await response.json()
-
-            if (data.success) {
-                const currentUsers = userStore.getState().users
-                userStore.setState({
-                    users: [data.data, ...currentUsers],
-                    loading: false
-                })
-                return true
-            } else {
-                userStore.setState({ error: data.message, loading: false })
-                return false
-            }
+            await FirestoreService.saveUser(newUser);
+            console.log('User synced to Firestore on creation');
         } catch (e) {
-            userStore.setState({ error: 'Failed to add user', loading: false })
+            console.warn('Background user sync failed:', e);
+        }
+
+        return true;
+    },
+
+    /* Backend Code (Disabled for Mock)
+    try {
+        const token = authStore.getState().token
+        const response = await fetch(`${import.meta.env.VITE_API_URL}/api/users`, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'Authorization': `Bearer ${token}`
+            },
+            body: JSON.stringify(userData)
+        })
+        const data = await response.json()
+
+        if (data.success) {
+            const currentUsers = userStore.getState().users
+            userStore.setState({
+                users: [data.data, ...currentUsers],
+                loading: false
+            })
+            return true
+        } else {
+            userStore.setState({ error: data.message, loading: false })
             return false
         }
-        */
-    },
+    } catch (e) {
+        userStore.setState({ error: 'Failed to add user', loading: false })
+        return false
+    }
+    */
 
     deleteUser: async (id) => {
         try {
-            const token = authStore.getState().token
-            const response = await fetch(`${import.meta.env.VITE_API_URL}/api/users/${id}`, {
-                method: 'DELETE',
-                headers: {
-                    'Authorization': `Bearer ${token}`
-                }
-            })
+            // Remove from Firestore
+            await FirestoreService.deleteUser(id);
 
-            if (response.ok) {
-                const currentUsers = userStore.getState().users
-                userStore.setState({
-                    users: currentUsers.filter(u => u.id !== id)
-                })
-                return true
-            }
-            return false
+            // Remove from local state
+            const currentUsers = userStore.getState().users
+            userStore.setState({
+                users: currentUsers.filter(u => String(u.id) !== String(id))
+            })
+            return true
         } catch (e) {
+            console.error('Delete user failed:', e);
             return false
         }
     }

@@ -46,8 +46,8 @@ export class PhotoCapture {
                     <i class="fas fa-play"></i>
                     بدء فحص كامل
                 </button>
-             ` : ''}
-             <span class="text-xs text-slate-500 font-bold">${this.getCapturedCount()} / ${this.maxPhotos}</span>
+              ` : ''}
+              <span class="text-xs text-slate-500 font-bold">${this.getCapturedCount()} / ${this.maxPhotos}</span>
           </div>
         </div>
         
@@ -64,25 +64,6 @@ export class PhotoCapture {
           capture="environment"
           class="hidden"
         >
-
-        <!-- Guide Overlay (Hidden by default) -->
-        <div id="${this.containerId}-guide" class="fixed inset-0 z-[1000] bg-black/90 hidden flex-col items-center justify-center p-6 backdrop-blur-sm">
-            <div class="w-full max-w-md bg-white/10 rounded-3xl p-8 border border-white/20 relative overflow-hidden">
-                <div class="absolute inset-0 bg-gradient-to-br from-primary-500/10 to-transparent"></div>
-                <div id="${this.containerId}-guide-svg" class="w-full h-48 mb-8 text-white relative z-10"></div>
-                <h3 id="${this.containerId}-guide-label" class="text-white text-2xl font-bold text-center mb-2 relative z-10"></h3>
-                <p class="text-slate-300 text-center text-sm mb-8 relative z-10">يرجى توجيه الكاميرا لتشمل هذا الجانب من السيارة</p>
-                <div class="flex flex-col gap-3 relative z-10">
-                    <button type="button" id="${this.containerId}-guide-capture" class="bg-primary-500 hover:bg-primary-600 outline-none text-white py-4 rounded-2xl font-bold text-lg shadow-xl shadow-primary-500/20 transition-all transform active:scale-95 flex items-center justify-center gap-3">
-                        <i class="fas fa-camera text-xl"></i>
-                        التقاط الآن
-                    </button>
-                    <button type="button" id="${this.containerId}-guide-cancel" class="text-slate-400 py-3 font-bold hover:text-white transition">
-                        إلغاء المتتابعة
-                    </button>
-                </div>
-            </div>
-        </div>
       </div>
     `
 
@@ -242,19 +223,7 @@ export class PhotoCapture {
       })
     })
 
-    // Guide buttons
-    const guideCapture = document.getElementById(`${this.containerId}-guide-capture`)
-    if (guideCapture) {
-      guideCapture.addEventListener('click', () => {
-        this.hideGuide();
-        this.triggerCapture();
-      })
-    }
-
-    const guideCancel = document.getElementById(`${this.containerId}-guide-cancel`)
-    if (guideCancel) {
-      guideCancel.addEventListener('click', () => this.hideGuide())
-    }
+    // Old guide buttons removed - now using live camera overlay
 
     const input = document.getElementById(`${this.containerId}-input`)
     if (input) {
@@ -274,36 +243,231 @@ export class PhotoCapture {
   }
 
   showGuide(slot) {
-    const guideEl = document.getElementById(`${this.containerId}-guide`);
-    const svgEl = document.getElementById(`${this.containerId}-guide-svg`);
-    const labelEl = document.getElementById(`${this.containerId}-guide-label`);
-
-    if (guideEl && svgEl && labelEl) {
-      svgEl.innerHTML = getGuideForSlot(slot.id);
-      labelEl.textContent = slot.label;
-      guideEl.classList.remove('hidden');
-      guideEl.classList.add('flex');
-    }
+    // Now uses live camera instead of static guide
+    this.activeSlotId = slot.id;
+    this.startLiveCamera(slot);
   }
 
   hideGuide() {
-    const guideEl = document.getElementById(`${this.containerId}-guide`);
-    if (guideEl) {
-      guideEl.classList.add('hidden');
-      guideEl.classList.remove('flex');
+    this.stopLiveCamera();
+  }
+
+  async startLiveCamera(slot) {
+    // Create and inject overlay into body for true full-screen isolation
+    const overlayHtml = `
+      <div id="${this.containerId}-live-camera" style="position: fixed; top: 0; left: 0; right: 0; bottom: 0; width: 100vw; height: 100vh; z-index: 9999999; background: #000; display: flex; flex-direction: column;">
+          <video id="${this.containerId}-video" style="position: absolute; top: 0; left: 0; width: 100%; height: 100%; object-fit: cover; z-index: 1;" autoplay playsinline muted></video>
+          
+          <div style="position: absolute; top: 0; left: 0; right: 0; z-index: 20; padding: 16px; padding-top: env(safe-area-inset-top, 40px); background: linear-gradient(to bottom, rgba(0,0,0,0.8), transparent);">
+              <div style="display: flex; align-items: center; justify-content: space-between;">
+                  <button type="button" id="${this.containerId}-flash-toggle" style="width: 44px; height: 44px; border-radius: 50%; background: rgba(255,255,255,0.15); backdrop-filter: blur(10px); border: none; display: flex; align-items: center; justify-content: center; color: white;">
+                      <i class="fas fa-bolt"></i>
+                  </button>
+                  <div id="${this.containerId}-step-counter" style="padding: 8px 16px; border-radius: 20px; background: rgba(255,255,255,0.15); backdrop-filter: blur(10px); color: white; font-size: 14px; font-weight: bold;">
+                      Step 1/${this.slots.length}
+                  </div>
+                  <button type="button" id="${this.containerId}-cam-cancel" style="width: 44px; height: 44px; border-radius: 50%; background: rgba(255,255,255,0.15); backdrop-filter: blur(10px); border: none; display: flex; align-items: center; justify-content: center; color: white;">
+                      <i class="fas fa-times"></i>
+                  </button>
+              </div>
+          </div>
+          
+          <div style="position: absolute; bottom: 0; left: 0; right: 0; z-index: 20; padding: 20px; padding-bottom: env(safe-area-inset-bottom, 30px); background: linear-gradient(to top, rgba(0,0,0,0.9), rgba(0,0,0,0.5), transparent);">
+              <button type="button" id="${this.containerId}-cam-capture" style="width: 100%; background: rgba(30,41,59,0.8); backdrop-filter: blur(20px); border: 1px solid rgba(255,255,255,0.1); color: white; padding: 16px; border-radius: 16px; font-weight: bold; font-size: 18px; margin-bottom: 20px;">
+                  <span id="${this.containerId}-capture-label">Capture ${slot.label}</span>
+              </button>
+              <div style="display: flex; align-items: center; justify-content: center; gap: 24px;">
+                  <button type="button" id="${this.containerId}-cam-prev" style="width: 48px; height: 48px; border-radius: 50%; background: rgba(255,255,255,0.1); backdrop-filter: blur(10px); border: 1px solid rgba(255,255,255,0.1); display: flex; align-items: center; justify-content: center; color: white;">
+                      <i class="fas fa-chevron-right"></i>
+                  </button>
+                  <div style="text-align: center; min-width: 100px;">
+                      <span id="${this.containerId}-cam-label" style="color: white; font-size: 14px; font-weight: bold;">${slot.label}</span>
+                  </div>
+                  <button type="button" id="${this.containerId}-cam-next" style="width: 48px; height: 48px; border-radius: 50%; background: rgba(255,255,255,0.1); backdrop-filter: blur(10px); border: 1px solid rgba(255,255,255,0.1); display: flex; align-items: center; justify-content: center; color: white;">
+                      <i class="fas fa-chevron-left"></i>
+                  </button>
+              </div>
+          </div>
+          <canvas id="${this.containerId}-canvas" style="display: none;"></canvas>
+      </div>
+    `;
+
+    const wrapper = document.createElement('div');
+    wrapper.id = `${this.containerId}-camera-wrapper`;
+    wrapper.innerHTML = overlayHtml.trim();
+    document.body.appendChild(wrapper);
+
+    const videoEl = document.getElementById(`${this.containerId}-video`);
+
+    // Update UI Content labels
+    this.updateLiveGuideUI(slot);
+
+    // Start camera stream
+    try {
+      const constraints = {
+        video: {
+          facingMode: 'environment',
+          width: { ideal: 1920 },
+          height: { ideal: 1080 }
+        },
+        audio: false
+      };
+
+      this.mediaStream = await navigator.mediaDevices.getUserMedia(constraints);
+      videoEl.srcObject = this.mediaStream;
+      await videoEl.play();
+
+      // Attach live camera event listeners
+      this.attachLiveCameraListeners();
+    } catch (error) {
+      console.error('Camera access error:', error);
+      Toast.error('لم نتمكن من فتح الكاميرا. يرجى السماح بالوصول.');
+      this.stopLiveCamera();
+      this.triggerNativeCapture();
     }
   }
 
-  async triggerCapture() {
+  updateLiveGuideUI(slot) {
+    const labelEl = document.getElementById(`${this.containerId}-cam-label`);
+    const captureLabel = document.getElementById(`${this.containerId}-capture-label`);
+    const stepCounter = document.getElementById(`${this.containerId}-step-counter`);
+
+    const currentIndex = this.slots.findIndex(s => s.id === slot.id) + 1;
+
+    // Update labels only
+    if (labelEl) labelEl.textContent = slot.label || 'Vehicle';
+    if (captureLabel) captureLabel.textContent = `Capture ${slot.label || 'Photo'}`;
+    if (stepCounter) stepCounter.textContent = `Step ${currentIndex}/${this.slots.length}`;
+  }
+
+  stopLiveCamera() {
+    const wrapper = document.getElementById(`${this.containerId}-camera-wrapper`);
+    const videoEl = document.getElementById(`${this.containerId}-video`);
+
+    if (this.mediaStream) {
+      this.mediaStream.getTracks().forEach(track => track.stop());
+      this.mediaStream = null;
+    }
+
+    if (videoEl) videoEl.srcObject = null;
+
+    if (wrapper) {
+      wrapper.remove();
+    }
+  }
+
+  attachLiveCameraListeners() {
+    const captureBtn = document.getElementById(`${this.containerId}-cam-capture`);
+    const cancelBtn = document.getElementById(`${this.containerId}-cam-cancel`);
+    const prevBtn = document.getElementById(`${this.containerId}-cam-prev`);
+    const nextBtn = document.getElementById(`${this.containerId}-cam-next`);
+    const flashBtn = document.getElementById(`${this.containerId}-flash-toggle`);
+
+    if (captureBtn && !captureBtn._listenerAttached) {
+      captureBtn.addEventListener('click', () => this.captureFromStream());
+      captureBtn._listenerAttached = true;
+    }
+
+    if (cancelBtn && !cancelBtn._listenerAttached) {
+      cancelBtn.addEventListener('click', () => {
+        this.stopLiveCamera();
+        this.activeSlotId = null;
+      });
+      cancelBtn._listenerAttached = true;
+    }
+
+    if (prevBtn && !prevBtn._listenerAttached) {
+      prevBtn.addEventListener('click', () => this.navigateSlot(-1));
+      prevBtn._listenerAttached = true;
+    }
+
+    if (nextBtn && !nextBtn._listenerAttached) {
+      nextBtn.addEventListener('click', () => this.navigateSlot(1));
+      nextBtn._listenerAttached = true;
+    }
+
+    if (flashBtn && !flashBtn._listenerAttached) {
+      flashBtn.addEventListener('click', () => this.toggleFlash());
+      flashBtn._listenerAttached = true;
+    }
+  }
+
+  async toggleFlash() {
+    if (!this.mediaStream) return;
+    const track = this.mediaStream.getVideoTracks()[0];
+    if (!track) return;
+
+    try {
+      const capabilities = track.getCapabilities();
+      if (capabilities.torch) {
+        this.flashOn = !this.flashOn;
+        await track.applyConstraints({
+          advanced: [{ torch: this.flashOn }]
+        });
+        Toast.info(this.flashOn ? 'تم تشغيل الكشاف' : 'تم إيقاف الكشاف');
+      } else {
+        Toast.info('الكشاف غير مدعوم على هذا المتصفح/الجهاز');
+      }
+    } catch (e) {
+      console.error('Flash error:', e);
+    }
+  }
+
+  navigateSlot(direction) {
+    const currentIndex = this.slots.findIndex(s => s.id === this.activeSlotId);
+    let newIndex = currentIndex + direction;
+
+    // Wrap around
+    if (newIndex < 0) newIndex = this.slots.length - 1;
+    if (newIndex >= this.slots.length) newIndex = 0;
+
+    const newSlot = this.slots[newIndex];
+    this.activeSlotId = newSlot.id;
+
+    // Update UI without restarting camera
+    this.updateLiveGuideUI(newSlot);
+  }
+
+  async captureFromStream() {
+    const videoEl = document.getElementById(`${this.containerId}-video`);
+    const canvasEl = document.getElementById(`${this.containerId}-canvas`);
+
+    if (!videoEl || !canvasEl) return;
+
+    // Set canvas size to video size
+    canvasEl.width = videoEl.videoWidth;
+    canvasEl.height = videoEl.videoHeight;
+
+    // Draw video frame to canvas
+    const ctx = canvasEl.getContext('2d');
+    ctx.drawImage(videoEl, 0, 0, canvasEl.width, canvasEl.height);
+
+    // Convert to base64
+    const base64Data = canvasEl.toDataURL('image/jpeg', 0.7);
+
+    // Add photo
+    this.addPhoto({
+      data: base64Data,
+      timestamp: new Date().toISOString(),
+      originalName: `photo_${this.activeSlotId}_${Date.now()}.jpg`,
+      size: Math.round(base64Data.length * 0.75)
+    });
+
+    // Stop camera and proceed to next
+    this.stopLiveCamera();
+  }
+
+  async triggerNativeCapture() {
     const isNative = window.Capacitor && window.Capacitor.isNativePlatform();
     if (isNative) {
       try {
         const { Camera, CameraResultType, CameraSource } = await import('@capacitor/camera');
         const image = await Camera.getPhoto({
-          quality: 90,
+          quality: 60,
+          width: 1280,
           allowEditing: false,
           resultType: CameraResultType.Base64,
-          source: this.sequentialMode ? CameraSource.Camera : CameraSource.Prompt
+          source: CameraSource.Camera
         });
 
         if (image && image.base64String) {
@@ -316,13 +480,20 @@ export class PhotoCapture {
           });
         }
       } catch (error) {
-        console.error('Camera Error:', error);
-        // Ensure UI is cleaned up on cancel/error
-        this.hideGuide();
-        if (!this.sequentialMode) this.fallbackToWebCapture();
+        console.error('Native Camera Error:', error);
       }
     } else {
       this.fallbackToWebCapture();
+    }
+  }
+
+  async triggerCapture() {
+    // Now redirects to live camera
+    if (this.activeSlotId) {
+      const slot = this.slots.find(s => s.id === this.activeSlotId);
+      if (slot) this.startLiveCamera(slot);
+    } else {
+      this.triggerNativeCapture();
     }
   }
 
@@ -337,8 +508,8 @@ export class PhotoCapture {
     try {
       validateImageFile(file)
       const compressedBase64 = await compressImage(file, {
-        maxSizeMB: 0.5,
-        maxWidthOrHeight: 1024,
+        maxSizeMB: 0.3, // Even smaller footprint for web uploads
+        maxWidthOrHeight: 1280,
         useWebWorker: true
       })
       this.addPhoto({
@@ -355,6 +526,12 @@ export class PhotoCapture {
   }
 
   addPhoto(photoRecord) {
+    // Visual Feedback: Camera Flash
+    const flash = document.createElement('div');
+    flash.className = 'fixed inset-0 z-[2000] bg-white animate-flash-fast pointer-events-none';
+    document.body.appendChild(flash);
+    setTimeout(() => flash.remove(), 300);
+
     if (this.activeSlotId) {
       this.photoMap[this.activeSlotId] = photoRecord;
     } else {

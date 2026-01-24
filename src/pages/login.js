@@ -30,7 +30,7 @@ export function renderLoginScreen(container) {
               <label class="block text-slate-300 text-xs font-bold mb-2 mr-1">كلمة المرور</label>
               <div class="relative">
                 <i class="fas fa-lock absolute right-4 top-1/2 -translate-y-1/2 text-slate-400 text-sm"></i>
-                <input type="password" id="password" required class="w-full bg-slate-800/50 border border-slate-700 text-white rounded-2xl py-3.5 pr-12 pl-4 focus:border-primary-500 focus:ring-1 focus:ring-primary-500 transition-all outline-none text-sm" placeholder="��������������������������">
+                <input type="password" id="password" required class="w-full bg-slate-800/50 border border-slate-700 text-white rounded-2xl py-3.5 pr-12 pl-4 focus:border-primary-500 focus:ring-1 focus:ring-primary-500 transition-all outline-none text-sm" placeholder="••••••••">
               </div>
             </div>
 

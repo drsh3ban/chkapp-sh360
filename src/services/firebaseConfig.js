@@ -1,20 +1,21 @@
 import { initializeApp } from "firebase/app";
 import { getStorage } from "firebase/storage";
+import { getFirestore } from "firebase/firestore";
 
-// TODO: Replace the following with your app's Firebase project configuration
-// You can find this in Firebase Console -> Project Settings -> General -> Your apps
+// Firebase configuration from google-services.json
 const firebaseConfig = {
-    apiKey: "YOUR_API_KEY",
-    authDomain: "androidchk-33858359.firebaseapp.com",
-    projectId: "androidchk-33858359",
-    storageBucket: "androidchk-33858359.firebasestorage.app",
-    messagingSenderId: "YOUR_MESSAGING_SENDER_ID",
-    appId: "YOUR_APP_ID"
+    apiKey: "AIzaSyCMzX3-11-d0CXJPzBlsvkwB-iNQrIcUC0",
+    authDomain: "chkapp-sh360.firebaseapp.com",
+    projectId: "chkapp-sh360",
+    storageBucket: "chkapp-sh360.firebasestorage.app",
+    messagingSenderId: "431562244942",
+    appId: "1:431562244942:android:a548104f06b3d6e3a9541f"
 };
 
 // Initialize Firebase
 const app = initializeApp(firebaseConfig);
 
-// Initialize Cloud Storage and get a reference to the service
+// Initialize Cloud Storage and Firestore
 export const storage = getStorage(app);
+export const db = getFirestore(app);
 export default app;

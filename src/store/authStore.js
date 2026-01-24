@@ -1,5 +1,6 @@
 import { createStore } from './index'
 import { BiometricService } from '../services/biometricService'
+import { FirestoreService } from '../services/firestoreService'
 
 const initialState = {
     user: null,
@@ -21,7 +22,7 @@ authStore.subscribe((state) => {
 
 // Auth actions
 export const authActions = {
-    setAuth: (data) => {
+    setAuth: async (data) => {
         const { user, token } = data
         authStore.setState({
             user,
@@ -29,17 +30,53 @@ export const authActions = {
             token,
             isAuthenticated: true
         })
+
+        // Auto-sync user to Firestore
+        try {
+            await FirestoreService.saveUser({
+                ...user,
+                lastLogin: new Date().toISOString()
+            });
+            console.log('User synced to Firestore');
+        } catch (e) {
+            console.warn('Failed to sync user to Firestore:', e);
+        }
+
         return true
     },
 
+    // Temporary session storage for biometric setup (not persisted)
+    _sessionCredentials: null,
+
     login: async (username, password) => {
-        // Mock Login for Testing
+        // 1. Mock Login for Testing (Admin)
         if (username === 'admin' && password === 'admin') {
             console.log('Using mock login');
+            authActions._sessionCredentials = { username: 'admin', password: 'admin' };
             return authActions.setAuth({
-                user: { id: 1, name: 'Admin User', role: 'admin' },
+                user: { id: '1', name: 'Admin User', role: 'admin', username: 'admin' },
                 token: 'mock-jwt-token-123456'
             });
+        }
+
+        // 2. Local Storage Login (Created Users)
+        try {
+            const savedUsers = localStorage.getItem('autocheck_users');
+            if (savedUsers) {
+                const users = JSON.parse(savedUsers);
+                const matchedUser = users.find(u => u.username === username && u.password === password);
+
+                if (matchedUser) {
+                    console.log('Login success via Local Storage user');
+                    authActions._sessionCredentials = { username, password };
+                    return authActions.setAuth({
+                        user: matchedUser,
+                        token: `local-token-${Date.now()}`
+                    });
+                }
+            }
+        } catch (e) {
+            console.error('Local login check failed:', e);
         }
 
         try {
@@ -50,6 +87,8 @@ export const authActions = {
             })
             const data = await response.json()
             if (data.success) {
+                // Store credentials temporarily for biometric setup
+                authActions._sessionCredentials = { username, password };
                 return authActions.setAuth(data)
             }
             return false

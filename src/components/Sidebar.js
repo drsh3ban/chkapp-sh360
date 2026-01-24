@@ -107,11 +107,11 @@ function renderNavLinks(role) {
     <p class="px-4 py-2 text-xs font-bold text-slate-500 uppercase tracking-wider">العمليات</p>
     <button data-section="exit" class="nav-btn w-full text-right px-4 py-3 rounded-xl hover:bg-slate-800 transition-all flex items-center group">
       <i class="fas fa-sign-out-alt ml-3 w-6 text-center text-slate-400 group-hover:text-orange-400 transition"></i>
-      <span class="group-hover:text-white text-slate-300">تسجيل خروج</span>
+      <span class="group-hover:text-white text-slate-300">تشييك الخروج</span>
     </button>
     <button data-section="entry" class="nav-btn w-full text-right px-4 py-3 rounded-xl hover:bg-slate-800 transition-all flex items-center group">
       <i class="fas fa-sign-in-alt ml-3 w-6 text-center text-slate-400 group-hover:text-emerald-400 transition"></i>
-      <span class="group-hover:text-white text-slate-300">تسجيل عودة</span>
+      <span class="group-hover:text-white text-slate-300">تشييك العودة</span>
     </button>
   `
 
