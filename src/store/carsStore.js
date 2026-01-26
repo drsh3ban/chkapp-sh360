@@ -1,4 +1,5 @@
 import { createStore } from './index'
+import { authStore } from './authStore'
 import { FirestoreService } from '../services/firestoreService'
 
 const defaultCars = [
@@ -30,26 +31,52 @@ carsStore.subscribe((state) => {
 
 // Cars actions
 export const carsActions = {
+    // Load cars from Firestore for current company
+    loadCars: async () => {
+        const companyId = authStore.getState().companyId;
+        if (!companyId) {
+            console.warn('No companyId, cannot load cars');
+            return;
+        }
+
+        carsStore.setState({ loading: true });
+        try {
+            const cars = await FirestoreService.getCars(companyId);
+            carsStore.setState({ cars, loading: false });
+            console.log('Loaded', cars.length, 'cars for company', companyId);
+        } catch (e) {
+            console.error('Failed to load cars:', e);
+            carsStore.setState({ loading: false, error: e.message });
+        }
+    },
+
     addCar: async (carData) => {
+        const companyId = authStore.getState().companyId;
+        if (!companyId) throw new Error('لا يمكن إضافة سيارة بدون شركة');
+
         const newCar = {
             id: String(Date.now()),
             ...carData,
+            companyId: companyId,
             status: 'in'
         }
         carsStore.setState((state) => ({
             cars: [...state.cars, newCar]
         }))
 
-        // Background sync to Firestore
+        // Sync to Firestore
         try {
-            await FirestoreService.saveCar(newCar);
-            console.log('Car synced to Firestore on creation');
+            await FirestoreService.saveCar(companyId, newCar);
+            console.log('Car synced to Firestore');
         } catch (e) {
-            console.warn('Background car sync failed:', e);
+            console.warn('Car sync failed:', e);
         }
     },
 
     updateCar: async (id, updates) => {
+        const companyId = authStore.getState().companyId;
+        if (!companyId) return;
+
         const state = carsStore.getState();
         const updatedCars = state.cars.map(car =>
             String(car.id) === String(id) ? { ...car, ...updates } : car
@@ -61,7 +88,7 @@ export const carsActions = {
         try {
             const updatedCar = updatedCars.find(car => String(car.id) === String(id));
             if (updatedCar) {
-                await FirestoreService.saveCar(updatedCar);
+                await FirestoreService.saveCar(companyId, updatedCar);
                 console.log('Car update synced to Firestore');
             }
         } catch (e) {
@@ -70,13 +97,16 @@ export const carsActions = {
     },
 
     deleteCar: async (id) => {
+        const companyId = authStore.getState().companyId;
+        if (!companyId) return;
+
         carsStore.setState((state) => ({
             cars: state.cars.filter(car => String(car.id) !== String(id))
         }))
 
         // Sync to Firestore
         try {
-            await FirestoreService.deleteCar(String(id));
+            await FirestoreService.deleteCar(companyId, String(id));
             console.log('Car deleted from Firestore');
         } catch (e) {
             console.warn('Car deletion sync failed:', e);
@@ -88,10 +118,16 @@ export const carsActions = {
     },
 
     getCarsInside: () => {
-        return carsStore.getState().cars.filter(car => car.status === 'in')
+        const companyId = authStore.getState().companyId;
+        return carsStore.getState().cars.filter(car =>
+            car.status === 'in' && car.companyId === companyId
+        )
     },
 
     getCarsOutside: () => {
-        return carsStore.getState().cars.filter(car => car.status === 'out')
+        const companyId = authStore.getState().companyId;
+        return carsStore.getState().cars.filter(car =>
+            car.status === 'out' && car.companyId === companyId
+        )
     }
 }

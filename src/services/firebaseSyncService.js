@@ -1,6 +1,7 @@
 import { FirestoreService } from './firestoreService.js';
 import { carsStore } from '../store/carsStore.js';
 import { movementsStore } from '../store/movementsStore.js';
+import { authStore } from '../store/authStore';
 
 /**
  * Firebase Data Sync Service
@@ -12,11 +13,17 @@ export const FirebaseSyncService = {
      * Called on app startup to restore data
      */
     async loadFromFirestore() {
-        console.log('Loading data from Firestore...');
+        const companyId = authStore.getState().companyId;
+        if (!companyId) {
+            console.warn('Sync skipped: No companyId available yet');
+            return { cars: 0, movements: 0, users: 0 };
+        }
+
+        console.log('Loading data from Firestore for company:', companyId);
 
         try {
             // Load cars from Firestore
-            const firestoreCars = await FirestoreService.getCars();
+            const firestoreCars = await FirestoreService.getCars(companyId);
             if (firestoreCars.length > 0) {
                 const localCars = carsStore.getState().cars || [];
                 const mergedCars = this.mergeData(firestoreCars, localCars, 'id');
@@ -24,13 +31,12 @@ export const FirebaseSyncService = {
                 console.log(`Loaded ${firestoreCars.length} cars from Firestore`);
             }
 
-            // Load movements from Firestore - use Firebase photo URLs
-            const firestoreMovements = await FirestoreService.getMovements();
+            // Load movements from Firestore
+            const firestoreMovements = await FirestoreService.getMovements(companyId);
             if (firestoreMovements.length > 0) {
                 // Convert Firebase photo URLs to displayable format
                 const processedMovements = firestoreMovements.map(m => ({
                     ...m,
-                    // Use Firebase URLs for display if available
                     exitPhotos: m.exitPhotoUrls || m.exitPhotos || [],
                     returnPhotos: m.returnPhotoUrls || m.returnPhotos || []
                 }));
@@ -42,9 +48,8 @@ export const FirebaseSyncService = {
             }
 
             // Load users from Firestore
-            const firestoreUsers = await FirestoreService.getUsers();
+            const firestoreUsers = await FirestoreService.getUsers(companyId);
             if (firestoreUsers.length > 0) {
-                // Merge with existing local users
                 const localUsers = JSON.parse(localStorage.getItem('autocheck_users') || '[]');
                 const mergedUsers = this.mergeData(firestoreUsers, localUsers, 'id');
                 localStorage.setItem('autocheck_users', JSON.stringify(mergedUsers));

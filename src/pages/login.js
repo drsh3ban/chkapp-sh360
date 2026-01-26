@@ -59,7 +59,7 @@ export function renderLoginScreen(container) {
         </form>
       </div>
       
-      <p class="relative z-10 mt-10 text-slate-500 text-[10px] tracking-widest uppercase">AutoCheck Pro v7.0 • Multi-Tenant</p>
+      <p class="relative z-10 mt-10 text-slate-500 text-[10px] tracking-widest uppercase">AutoCheck Pro v1.2.0 • Multi-Tenant</p>
     </div>
   `
 
@@ -78,18 +78,28 @@ export function renderLoginScreen(container) {
     submitBtn.innerHTML = '<i class="fas fa-circle-notch fa-spin"></i> جاري التحقق...'
 
     try {
-      const success = await authActions.login(username, password)
-
-      if (success) {
-        Toast.success('تم تسجيل الدخول بنجاح')
-        initializeApp()
-      } else {
-        Toast.error('خطأ في اسم المستخدم أو كلمة المرور')
-        submitBtn.disabled = false
-        submitBtn.innerHTML = originalContent
-      }
+      await authActions.login(username, password)
+      Toast.success('تم تسجيل الدخول بنجاح')
+      initializeApp()
     } catch (err) {
-      Toast.error('فشل الاتصال بالخادم')
+      console.error('Login UI error:', err);
+
+      let message = 'فشل الاتصال بالخادم';
+
+      // Auto-Registration & Auth Errors
+      if (err.message) {
+        message = err.message;
+      }
+
+      if (err.code === 'auth/wrong-password' || err.code === 'auth/user-not-found' || err.code === 'auth/invalid-credential') {
+        message = 'اسم المستخدم أو كلمة المرور غير صحيحة';
+      }
+
+      if (err.code === 'auth/profile-not-found') {
+        message = err.message; // 'الحساب موجود ولكن غير مرتبط بأي شركة. يرجى مراجعة المدير.'
+      }
+
+      Toast.error(message)
       submitBtn.disabled = false
       submitBtn.innerHTML = originalContent
     }

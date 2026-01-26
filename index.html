@@ -153,6 +153,18 @@
     </div>
 
     <div id="app"></div>
+
+    <!-- Failsafe: Hide splash if initialization hangs -->
+    <script>
+        setTimeout(function () {
+            var splash = document.getElementById('splash-screen');
+            if (splash) {
+                splash.classList.add('fade-out');
+                setTimeout(function () { if (splash.parentNode) splash.parentNode.removeChild(splash); }, 1000);
+                console.warn('Splash failsafe triggered: App took too long to load.');
+            }
+        }, 5000);
+    </script>
     <script type="module" src="/src/main.js"></script>
 </body>
 

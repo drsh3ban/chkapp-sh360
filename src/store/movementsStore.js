@@ -1,4 +1,5 @@
 import { createStore } from './index'
+import { authStore } from './authStore'
 import { ImageStorageService } from '../services/imageStorage'
 import { FirestoreService } from '../services/firestoreService'
 
@@ -100,14 +101,37 @@ const savePhotos = async (photos, prefix) => {
 
 // Movements actions
 export const movementsActions = {
+    // Load movements from Firestore for current company
+    loadMovements: async () => {
+        const companyId = authStore.getState().companyId;
+        if (!companyId) {
+            console.warn('No companyId, cannot load movements');
+            return;
+        }
+
+        movementsStore.setState({ loading: true });
+        try {
+            const movements = await FirestoreService.getMovements(companyId);
+            movementsStore.setState({ movements, loading: false });
+            console.log('Loaded', movements.length, 'movements for company', companyId);
+        } catch (e) {
+            console.error('Failed to load movements:', e);
+            movementsStore.setState({ loading: false, error: e.message });
+        }
+    },
+
     // Made async to handle file saving
     registerExit: async (exitData) => {
+        const companyId = authStore.getState().companyId;
+        if (!companyId) throw new Error('لا يمكن تسجيل خروج بدون شركة');
+
         // 1. Save images to filesystem first
         const savedExitPhotos = await savePhotos(exitData.exitPhotos, 'exit');
 
         const movement = {
             id: String(Date.now()),
             ...exitData,
+            companyId: companyId,
             exitPhotos: savedExitPhotos, // Store paths instead of base64
             exitTime: new Date().toISOString(),
             status: 'active',
@@ -139,7 +163,7 @@ export const movementsActions = {
         })).then(async () => {
             // Save movement to Firestore with uploaded photo URLs
             try {
-                await FirestoreService.saveMovement({
+                await FirestoreService.saveMovement(companyId, {
                     ...movement,
                     exitPhotoUrls: uploadedUrls
                 });
@@ -153,6 +177,9 @@ export const movementsActions = {
     },
 
     registerReturn: async (movementId, returnData) => {
+        const companyId = authStore.getState().companyId;
+        if (!companyId) return;
+
         // 1. Save images to filesystem first
         const savedReturnPhotos = await savePhotos(returnData.returnPhotos, 'return');
 
@@ -196,7 +223,7 @@ export const movementsActions = {
             })).then(async () => {
                 // Save movement to Firestore with uploaded photo URLs
                 try {
-                    await FirestoreService.saveMovement({
+                    await FirestoreService.saveMovement(companyId, {
                         ...updatedMovement,
                         returnPhotoUrls: uploadedUrls
                     });
@@ -208,19 +235,32 @@ export const movementsActions = {
         }
     },
 
-    deleteMovement: (id) => {
+    deleteMovement: async (id) => {
+        const companyId = authStore.getState().companyId;
+        if (!companyId) return;
+
         movementsStore.setState((state) => ({
             movements: state.movements.filter(m => String(m.id) !== String(id))
         }))
+
+        try {
+            await FirestoreService.deleteMovement(companyId, String(id));
+        } catch (e) {
+            console.warn('Movement deletion sync failed:', e);
+        }
     },
 
     getActiveMovements: () => {
-        return movementsStore.getState().movements.filter(m => m.status === 'active')
+        const companyId = authStore.getState().companyId;
+        return movementsStore.getState().movements.filter(m =>
+            m.status === 'active' && m.companyId === companyId
+        )
     },
 
     getMovementByCarId: (carId) => {
+        const companyId = authStore.getState().companyId;
         return movementsStore.getState().movements.find(
-            m => String(m.carId) === String(carId) && m.status === 'active'
+            m => String(m.carId) === String(carId) && m.status === 'active' && m.companyId === companyId
         )
     },
 
@@ -236,6 +276,9 @@ export const movementsActions = {
      * @param {Object} reportData - { exitConditionReport, returnConditionReport, damageComparisonReport }
      */
     updateAIReport: async (movementId, reportData) => {
+        const companyId = authStore.getState().companyId;
+        if (!companyId) return;
+
         const state = movementsStore.getState();
         const updatedMovements = state.movements.map(m =>
             String(m.id) === String(movementId)
@@ -249,7 +292,7 @@ export const movementsActions = {
         const updatedMovement = updatedMovements.find(m => String(m.id) === String(movementId));
         if (updatedMovement) {
             try {
-                await FirestoreService.saveMovement(updatedMovement);
+                await FirestoreService.saveMovement(companyId, updatedMovement);
                 console.log('AI Report synced to Firestore');
             } catch (e) {
                 console.warn('Firestore AI report sync failed:', e);

@@ -48,9 +48,12 @@ export const userActions = {
         userStore.setState({ loading: true, error: null })
 
         const currentUsers = userStore.getState().users;
+        const companyId = authStore.getState().companyId;
+
         const newUser = {
             id: String(Date.now()),
             ...userData,
+            companyId: companyId,
             created_at: new Date().toISOString()
         };
 

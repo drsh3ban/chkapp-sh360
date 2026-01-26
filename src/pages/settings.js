@@ -90,7 +90,7 @@ export function renderSettings(container) {
                 <div class="p-6">
                     <div class="text-center space-y-2">
                         <div class="text-2xl font-bold text-primary-800">AutoCheck Pro</div>
-                        <div class="text-slate-500">الإصدار 1.8.1</div>
+                        <div class="text-slate-500">الإصدار 1.2.0</div>
                         <div class="text-xs text-slate-400 mt-4">© 2026 جميع الحقوق محفوظة</div>
                     </div>
                 </div>

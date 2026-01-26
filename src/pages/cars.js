@@ -91,7 +91,7 @@ function renderCarsTable() {
 
   tbody.innerHTML = cars.map(car => `
     <tr>
-      <td class="p-4 text-sm text-slate-900 font-bold">${car.plate}</td>
+      <td class="p-4 text-sm text-slate-900 font-bold">${car.plate || car.plateNumber || 'بدون لوحة'}</td>
       <td class="p-4 text-sm text-slate-500">${car.model}</td>
       <td class="p-4">
         ${car.status === 'in'
@@ -142,7 +142,7 @@ function handleAddCar(e) {
 
   if (model && plate) {
     // Add car
-    carsActions.addCar({ plate, model })
+    carsActions.addCar({ plateNumber: plate, plate: plate, model })
     Toast.success('تمت إضافة السيارة الجديدة بنجاح')
 
     // Reset form

@@ -221,7 +221,7 @@ function updateDashboardStats() {
       <tr class="hover:bg-slate-50 transition">
         <td class="p-4 font-bold text-slate-700">
           ${car ? car.model : 'غير معروف'}
-          <span class="text-xs font-normal text-slate-400 block mt-1">${car ? car.plate : '-'}</span>
+          <span class="text-xs opacity-70 font-mono bg-white/10 px-2 py-0.5 rounded">${car ? (car.plate || car.plateNumber) : '---'}</span>
         </td>
         <td class="p-4">
           <span class="${typeClass} px-3 py-1 rounded-full text-xs font-bold border border-opacity-10">

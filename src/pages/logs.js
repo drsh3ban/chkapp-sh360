@@ -170,7 +170,7 @@ function renderMovementLogs() {
     filteredMovements = filteredMovements.filter(m => {
       const car = cars.find(c => String(c.id) === String(m.carId))
       return (
-        (car && car.plate.toLowerCase().includes(searchTerm)) ||
+        (car && (car.plate || car.plateNumber || '').toLowerCase().includes(searchTerm)) ||
         (car && car.model.toLowerCase().includes(searchTerm)) ||
         (m.driver && m.driver.toLowerCase().includes(searchTerm)) ||
         (m.user && m.user.toLowerCase().includes(searchTerm)) ||
@@ -253,7 +253,7 @@ function renderMovementCard(movement, cars, index) {
           </span>
           <i class="fas fa-car-side text-sm opacity-70"></i>
           <span class="font-bold whitespace-nowrap">${car ? car.model : 'مركبة محذوفة'}</span>
-          <span class="text-xs opacity-70 font-mono bg-white/10 px-2 py-0.5 rounded">${car ? car.plate : '---'}</span>
+          <span class="text-xs opacity-70 font-mono bg-white/10 px-2 py-0.5 rounded">${car ? (car.plate || car.plateNumber) : '---'}</span>
         </div>
         
         <!-- Row 2: Buttons -->

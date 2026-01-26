@@ -51,72 +51,52 @@ export const BiometricService = {
                 throw new Error(errorDetail);
             }
 
-            // NUCLEAR FIX (v1.1.30): 
-            // 1. Re-add identity verification but with 'useFallback'. 
-            console.log('Requesting identity verification to prepare Keystore...');
-            await NativeBiometric.verifyIdentity({
-                reason: 'يرجى تأكيد هويتك لتفعيل التشفير الآمن',
-                title: 'تفعيل الدخول السريع',
-                subtitle: 'تأمين البيانات',
-                description: 'استخدم البصمة للسماح بحفظ بيانات الدخول مشفرة',
-                useFallback: true
-            });
+            // v2.1.2: Standardized stable alias for Android Keystore
+            const VAULT_ALIAS = 'com.autocheck.pro.v1';
 
-            // 2. Extra stabilization delay (Hardware reset time)
-            console.log('Stabilizing biometric module (1000ms)...');
+            // Stabilization delay (Hardware/TEE reset time)
+            console.log('Stabilizing biometric secure module (1000ms)...');
             await new Promise(resolve => setTimeout(resolve, 1000));
 
-            // 3. Simplified, robust storage attempt using multiple aliases
-            // We use generic names that are less likely to be blocked by vendor-specific security policies
-            const ALIAS_LIST = ['autocheck_vault', 'generic_vault', 'com.autocheck.pro', 'biometric_data'];
-            let lastErr = null;
-            let successAlias = null;
+            try {
+                console.log(`Attempting secure storage with alias: ${VAULT_ALIAS}`);
 
-            for (const alias of ALIAS_LIST) {
-                try {
-                    console.log(`Attempting storage with alias: ${alias}`);
+                // 1. Cleanup old alias artifacts
+                try { await NativeBiometric.deleteCredentials({ server: VAULT_ALIAS }); } catch (e) { }
+                await new Promise(resolve => setTimeout(resolve, 300));
 
-                    // Pre-cleanup (ignore errors)
-                    try { await NativeBiometric.deleteCredentials({ server: alias }); } catch (e) { }
-                    await new Promise(resolve => setTimeout(resolve, 200));
+                // 2. Set new credentials
+                // Note: setCredentials handles the biometric prompt internally on Android
+                await NativeBiometric.setCredentials({
+                    username: String(username).trim(),
+                    password: String(password).trim(),
+                    server: VAULT_ALIAS
+                });
 
-                    await NativeBiometric.setCredentials({
-                        username: String(username).trim(),
-                        password: String(password).trim(),
-                        server: alias
-                    });
+                // 3. Persistent verification check
+                const { value: storedAlias } = await Preferences.get({ key: 'biometric_active_alias' });
 
-                    // Verification: Try to read it back immediately
-                    // This confirms the keystore actually persisted the data
-                    const verify = await NativeBiometric.getCredentials({ server: alias });
-                    if (verify && verify.username === username) {
-                        console.log(`Storage VERIFIED for alias: ${alias}`);
-                        successAlias = alias;
-                        break; // Stop on first success matching verification
-                    }
-                } catch (err) {
-                    lastErr = err;
-                    console.warn(`Alias ${alias} failed:`, err.message);
-                    await new Promise(resolve => setTimeout(resolve, 300));
-                }
-            }
-
-            if (successAlias) {
                 await Preferences.set({ key: 'biometric_enabled', value: 'true' });
-                await Preferences.set({ key: 'biometric_active_alias', value: successAlias });
-                return true;
-            }
+                await Preferences.set({ key: 'biometric_active_alias', value: VAULT_ALIAS });
 
-            if (lastErr) throw lastErr;
-            throw new Error('All storage attempts exhausted');
+                console.log('Biometric storage ENABLED and SAVED.');
+                return true;
+            } catch (err) {
+                console.error(`Vault storage for ${VAULT_ALIAS} failed:`, err);
+                throw err;
+            }
         } catch (e) {
-            console.error('Final Biometric Error Report:', e);
+            console.error('Final Biometric Error Report (v2.1.2):', e);
             let errorMessage = e.message || e.toString();
 
-            if (errorMessage.toLowerCase().includes('credentials') || errorMessage.toLowerCase().includes('encrypt')) {
-                errorMessage = `فشل تشفير الخزنة: (تأكد من قفل الشاشة والبصمة). تقني: ${errorMessage.slice(0, 40)}`;
+            // Handle common Keystore / Cryptographic failures with user-friendly messages
+            if (errorMessage.toLowerCase().includes('credentials') ||
+                errorMessage.toLowerCase().includes('encrypt') ||
+                errorMessage.toLowerCase().includes('null') ||
+                errorMessage.toLowerCase().includes('failed')) {
+                errorMessage = `فشل تشفير البيانات الآمنة. تأكد من أن هاتفك يحمي بكلمة مرور أو نمط (PIN/Pattern).`;
             }
-            throw new Error(`فشل تفعيل البصمة: ${errorMessage}`);
+            throw new Error(errorMessage);
         }
     },
 

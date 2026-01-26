@@ -8,30 +8,40 @@ import {
     updateDoc,
     deleteDoc,
     query,
+    where,
     orderBy,
     serverTimestamp
 } from 'firebase/firestore';
 
 /**
- * Firestore Database Service
- * Handles syncing cars, users, and movements to Firebase
+ * Multi-Tenant Firestore Service
+ * All data is scoped to /companies/{companyId}/...
+ * 
+ * Structure:
+ * /companies/{companyId}/
+ *   ├── users/      (employees)
+ *   ├── cars/       (fleet vehicles)
+ *   └── movements/  (exit/entry records)
  */
 export const FirestoreService = {
-    // ==================== CARS ====================
+
+    // ==================== CARS (Company-Scoped) ====================
 
     /**
-     * Save or update a car in Firestore
+     * Save or update a car in company subcollection
      */
-    async saveCar(car) {
+    async saveCar(companyId, car) {
+        if (!companyId) throw new Error('companyId مطلوب');
         try {
             const carId = String(car.id || car.plateNumber);
-            const carRef = doc(db, 'cars', carId);
+            const carRef = doc(db, 'companies', companyId, 'cars', carId);
             await setDoc(carRef, {
                 ...car,
                 id: carId,
+                companyId,
                 updatedAt: serverTimestamp()
             }, { merge: true });
-            console.log('Car saved to Firestore:', carId);
+            console.log('Car saved:', companyId, carId);
             return true;
         } catch (e) {
             console.error('Failed to save car:', e);
@@ -40,11 +50,12 @@ export const FirestoreService = {
     },
 
     /**
-     * Get all cars from Firestore
+     * Get all cars for a company
      */
-    async getCars() {
+    async getCars(companyId) {
+        if (!companyId) return [];
         try {
-            const carsRef = collection(db, 'cars');
+            const carsRef = collection(db, 'companies', companyId, 'cars');
             const snapshot = await getDocs(carsRef);
             return snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
         } catch (e) {
@@ -54,11 +65,13 @@ export const FirestoreService = {
     },
 
     /**
-     * Delete a car from Firestore
+     * Delete a car from company
      */
-    async deleteCar(carId) {
+    async deleteCar(companyId, carId) {
+        if (!companyId) return false;
         try {
-            await deleteDoc(doc(db, 'cars', carId));
+            await deleteDoc(doc(db, 'companies', companyId, 'cars', carId));
+            console.log('Car deleted:', companyId, carId);
             return true;
         } catch (e) {
             console.error('Failed to delete car:', e);
@@ -66,23 +79,23 @@ export const FirestoreService = {
         }
     },
 
-    // ==================== USERS ====================
+    // ==================== USERS (Company-Scoped) ====================
 
     /**
-     * Save or update a user in Firestore
+     * Save or update a user in company subcollection
      */
-    async saveUser(user) {
+    async saveUser(companyId, user) {
+        if (!companyId) throw new Error('companyId مطلوب');
         try {
-            const userId = String(user.id || user.username);
-            const userRef = doc(db, 'users', userId);
-
-            // Sync full user data including password to allow cross-device login
+            const userId = String(user.id || user.email);
+            const userRef = doc(db, 'companies', companyId, 'users', userId);
             await setDoc(userRef, {
                 ...user,
                 id: userId,
+                companyId,
                 updatedAt: serverTimestamp()
             }, { merge: true });
-            console.log('User saved to Firestore:', userId);
+            console.log('User saved:', companyId, userId);
             return true;
         } catch (e) {
             console.error('Failed to save user:', e);
@@ -91,11 +104,12 @@ export const FirestoreService = {
     },
 
     /**
-     * Get all users from Firestore
+     * Get all users for a company
      */
-    async getUsers() {
+    async getUsers(companyId) {
+        if (!companyId) return [];
         try {
-            const usersRef = collection(db, 'users');
+            const usersRef = collection(db, 'companies', companyId, 'users');
             const snapshot = await getDocs(usersRef);
             return snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
         } catch (e) {
@@ -105,12 +119,13 @@ export const FirestoreService = {
     },
 
     /**
-     * Delete a user from Firestore
+     * Delete a user from company
      */
-    async deleteUser(userId) {
+    async deleteUser(companyId, userId) {
+        if (!companyId) return false;
         try {
-            await deleteDoc(doc(db, 'users', userId));
-            console.log('User deleted from Firestore:', userId);
+            await deleteDoc(doc(db, 'companies', companyId, 'users', userId));
+            console.log('User deleted:', companyId, userId);
             return true;
         } catch (e) {
             console.error('Failed to delete user:', e);
@@ -118,22 +133,23 @@ export const FirestoreService = {
         }
     },
 
-    // ==================== MOVEMENTS ====================
+    // ==================== MOVEMENTS (Company-Scoped) ====================
 
     /**
-     * Save a movement record to Firestore
+     * Save a movement record
      */
-    async saveMovement(movement) {
+    async saveMovement(companyId, movement) {
+        if (!companyId) throw new Error('companyId مطلوب');
         try {
-            // Firestore requires string IDs
             const movementId = String(movement.id);
-            const movementRef = doc(db, 'movements', movementId);
+            const movementRef = doc(db, 'companies', companyId, 'movements', movementId);
             await setDoc(movementRef, {
                 ...movement,
                 id: movementId,
+                companyId,
                 syncedAt: serverTimestamp()
             }, { merge: true });
-            console.log('Movement saved to Firestore:', movementId);
+            console.log('Movement saved:', companyId, movementId);
             return true;
         } catch (e) {
             console.error('Failed to save movement:', e);
@@ -142,11 +158,12 @@ export const FirestoreService = {
     },
 
     /**
-     * Get all movements from Firestore
+     * Get all movements for a company
      */
-    async getMovements() {
+    async getMovements(companyId) {
+        if (!companyId) return [];
         try {
-            const movementsRef = collection(db, 'movements');
+            const movementsRef = collection(db, 'companies', companyId, 'movements');
             const q = query(movementsRef, orderBy('exitTime', 'desc'));
             const snapshot = await getDocs(q);
             return snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
@@ -157,35 +174,84 @@ export const FirestoreService = {
     },
 
     /**
-     * Sync all local data to Firestore
+     * Delete a movement
      */
-    async syncAll(cars, users, movements) {
+    async deleteMovement(companyId, movementId) {
+        if (!companyId) return false;
+        try {
+            await deleteDoc(doc(db, 'companies', companyId, 'movements', movementId));
+            return true;
+        } catch (e) {
+            console.error('Failed to delete movement:', e);
+            return false;
+        }
+    },
+
+    // ==================== COMPANIES ====================
+
+    /**
+     * Save or update a company
+     */
+    async saveCompany(company) {
+        try {
+            const companyId = String(company.id);
+            const companyRef = doc(db, 'companies', companyId);
+            await setDoc(companyRef, {
+                ...company,
+                updatedAt: serverTimestamp()
+            }, { merge: true });
+            return true;
+        } catch (e) {
+            console.error('Failed to save company:', e);
+            throw new Error('فشل حفظ الشركة: ' + e.message);
+        }
+    },
+
+    /**
+     * Get all companies (Super Admin)
+     */
+    async getCompanies() {
+        try {
+            const companiesRef = collection(db, 'companies');
+            const snapshot = await getDocs(companiesRef);
+            return snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+        } catch (e) {
+            console.error('Failed to get companies:', e);
+            return [];
+        }
+    },
+
+    // ==================== SYNC ALL (Company-Scoped) ====================
+
+    /**
+     * Sync all local data to Firestore for a company
+     */
+    async syncAll(companyId, cars, users, movements) {
+        if (!companyId) throw new Error('companyId مطلوب للمزامنة');
+
         const results = { cars: 0, users: 0, movements: 0, errors: [] };
 
-        // Sync cars
         for (const car of cars) {
             try {
-                await this.saveCar(car);
+                await this.saveCar(companyId, car);
                 results.cars++;
             } catch (e) {
                 results.errors.push(`Car ${car.plateNumber}: ${e.message}`);
             }
         }
 
-        // Sync users
         for (const user of users) {
             try {
-                await this.saveUser(user);
+                await this.saveUser(companyId, user);
                 results.users++;
             } catch (e) {
-                results.errors.push(`User ${user.username}: ${e.message}`);
+                results.errors.push(`User ${user.email}: ${e.message}`);
             }
         }
 
-        // Sync movements
         for (const movement of movements) {
             try {
-                await this.saveMovement(movement);
+                await this.saveMovement(companyId, movement);
                 results.movements++;
             } catch (e) {
                 results.errors.push(`Movement ${movement.id}: ${e.message}`);

@@ -26,7 +26,7 @@ export function renderSidebar(container) {
           <div class="w-8 h-8 rounded-lg bg-slate-700 flex items-center justify-center flex-shrink-0">
             <i class="fas fa-building text-slate-400 text-xs"></i>
           </div>
-          <span class="text-xs font-bold text-slate-200 truncate">${user?.company?.name || 'شركة غير معرفة'}</span>
+          <span class="text-xs font-bold text-slate-200 truncate">${user?.companyName || 'AutoCheck Pro'}</span>
         </div>
       </div>
       <!-- User Info -->

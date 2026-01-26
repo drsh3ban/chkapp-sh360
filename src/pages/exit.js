@@ -41,7 +41,13 @@ export function renderExitRegistration(container) {
                 </div>
               </div>
               <div>
-                <label class="block text-sm font-bold text-slate-700 mb-2">رقم العقد</label>
+                <div class="flex items-center justify-between mb-2">
+                  <label class="block text-sm font-bold text-slate-700">رقم العقد</label>
+                   <button type="button" id="scanAgreementBtn" class="bg-orange-50 text-orange-600 px-3 py-1 rounded-full text-[10px] font-bold hover:bg-orange-100 transition border border-orange-100 flex items-center gap-1">
+                    <i class="fas fa-camera"></i>
+                    تصوير العقد (AI)
+                  </button>
+                </div>
                 <input type="text" id="exitDriver" required class="w-full p-3 bg-slate-50 border border-slate-200 rounded-xl focus:ring-2 focus:ring-orange-500 outline-none" placeholder="ادخل رقم العقد">
               </div>
             </div>
@@ -126,13 +132,13 @@ export function renderExitRegistration(container) {
     containerId: 'exitPhotosContainer',
     label: 'صور جسم السيارة والداخلية',
     slots: [
-      { id: 'front', label: 'الأمامية' },
-      { id: 'left1', label: 'اليسار الأمامي' },
-      { id: 'left2', label: 'اليسار الخلفي' },
-      { id: 'back', label: 'الخلفية' },
-      { id: 'right2', label: 'اليمين الخلفي' },
-      { id: 'right1', label: 'اليمين الأمامي' },
-      { id: 'dash', label: 'الطبلون' }
+      { id: 'front', label: 'الجهة الأمامية' },
+      { id: 'left1', label: 'الجانب الأيسر (أمام)' },
+      { id: 'left2', label: 'الجانب الأيسر (خلف)' },
+      { id: 'back', label: 'الجهة الخلفية' },
+      { id: 'right2', label: 'الجانب الأيمن (خلف)' },
+      { id: 'right1', label: 'الجانب الأيمن (أمام)' },
+      { id: 'dash', label: 'طبلون السيارة' }
     ],
     sequentialMode: true,
     onPhotoTaken: (photos) => console.log('Mandatory photos:', photos.length),
@@ -187,6 +193,9 @@ export function renderExitRegistration(container) {
 
   // Handle AI Plate Scan
   document.getElementById('scanPlateBtn')?.addEventListener('click', handlePlateScan)
+
+  // Handle AI Agreement Scan
+  document.getElementById('scanAgreementBtn')?.addEventListener('click', handleAgreementScan)
 
   // Handle Plate Search Input
   document.getElementById('plateSearchInput')?.addEventListener('input', handlePlateSearch)
@@ -286,7 +295,7 @@ function handlePlateSearch(e) {
     availableCars.forEach(car => {
       const option = document.createElement('option');
       option.value = car.id;
-      option.textContent = `${car.model} - ${car.plate}`;
+      option.textContent = `${car.model} - ${car.plate || car.plateNumber}`;
       select.appendChild(option);
     });
   } else {
@@ -295,8 +304,9 @@ function handlePlateSearch(e) {
     const normalizedSearch = normalizePlate(searchValue);
 
     const filteredCars = availableCars.filter(car => {
-      const carNumbers = extractPlateNumbers(car.plate);
-      const normalizedCar = normalizePlate(car.plate);
+      const currentPlate = car.plate || car.plateNumber || '';
+      const carNumbers = extractPlateNumbers(currentPlate);
+      const normalizedCar = normalizePlate(currentPlate);
 
       // Match by numbers or normalized text
       return normalizedCar.includes(normalizedSearch) ||
@@ -311,7 +321,7 @@ function handlePlateSearch(e) {
       filteredCars.forEach(car => {
         const option = document.createElement('option');
         option.value = car.id;
-        option.textContent = `${car.model} - ${car.plate}`;
+        option.textContent = `${car.model} - ${car.plate || car.plateNumber}`;
         select.appendChild(option);
       });
 
@@ -362,7 +372,7 @@ function populateExitCarSelect() {
   availableCars.forEach(car => {
     const option = document.createElement('option')
     option.value = car.id
-    option.textContent = `${car.model} - ${car.plate}`
+    option.textContent = `${car.model} - ${car.plate || car.plateNumber}`
     select.appendChild(option)
   })
 
@@ -376,6 +386,34 @@ function populateExitCarSelect() {
     select.disabled = true
   } else {
     select.disabled = false
+  }
+}
+
+async function handleAgreementScan() {
+  try {
+    const { Camera, CameraResultType, CameraSource } = await import('@capacitor/camera');
+    const image = await Camera.getPhoto({
+      quality: 60,
+      width: 1024,
+      allowEditing: false,
+      resultType: CameraResultType.Base64,
+      source: CameraSource.Camera
+    });
+
+    if (image && image.base64String) {
+      Toast.info('جاري قراءة رقم العقد...', 3000);
+      const result = await aiService.scanAgreement(image.base64String);
+
+      if (result && result.agreementNumber) {
+        document.getElementById('exitDriver').value = result.agreementNumber;
+        Toast.success(`تم التعرف على رقم العقد: ${result.agreementNumber}`);
+      } else {
+        Toast.error('لم نتمكن من العثور على رقم العقد في الصورة');
+      }
+    }
+  } catch (error) {
+    console.error('Agreement Scan UI Error:', error);
+    Toast.error('فشل تصوير العقد');
   }
 }
 

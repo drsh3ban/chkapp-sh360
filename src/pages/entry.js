@@ -23,10 +23,16 @@ export function renderEntryRegistration(container) {
             <div class="space-y-4">
               <div class="flex items-center justify-between">
                 <label class="block text-sm font-bold text-slate-700">السيارة العائدة</label>
-                <button type="button" id="scanPlateBtn" class="bg-emerald-50 text-emerald-600 px-4 py-1.5 rounded-full text-xs font-bold hover:bg-emerald-100 transition border border-emerald-100 flex items-center gap-2">
-                  <i class="fas fa-barcode"></i>
-                  تصوير اللوحة (AI)
-                </button>
+                <div class="flex items-center gap-2">
+                  <button type="button" id="scanPlateBtn" class="bg-emerald-50 text-emerald-600 px-3 py-1.5 rounded-full text-[10px] font-bold hover:bg-emerald-100 transition border border-emerald-100 flex items-center gap-1">
+                    <i class="fas fa-car"></i>
+                    تصوير اللوحة (AI)
+                  </button>
+                  <button type="button" id="scanAgreementBtn" class="bg-emerald-50 text-emerald-600 px-3 py-1.5 rounded-full text-[10px] font-bold hover:bg-emerald-100 transition border border-emerald-100 flex items-center gap-1">
+                    <i class="fas fa-file-contract"></i>
+                    تصوير العقد (AI)
+                  </button>
+                </div>
               </div>
               <div class="relative mb-2">
                 <input type="text" id="plateSearchInput" placeholder="ابحث برقم اللوحة (مثال: 1179)" 
@@ -124,13 +130,13 @@ export function renderEntryRegistration(container) {
     containerId: 'entryPhotosContainer',
     label: 'صور جسم السيارة والداخلية',
     slots: [
-      { id: 'front', label: 'الأمامية' },
-      { id: 'left1', label: 'اليسار الأمامي' },
-      { id: 'left2', label: 'اليسار الخلفي' },
-      { id: 'back', label: 'الخلفية' },
-      { id: 'right2', label: 'اليمين الخلفي' },
-      { id: 'right1', label: 'اليمين الأمامي' },
-      { id: 'dash', label: 'الطبلون' }
+      { id: 'front', label: 'الجهة الأمامية' },
+      { id: 'left1', label: 'الجانب الأيسر (أمام)' },
+      { id: 'left2', label: 'الجانب الأيسر (خلف)' },
+      { id: 'back', label: 'الجهة الخلفية' },
+      { id: 'right2', label: 'الجانب الأيمن (خلف)' },
+      { id: 'right1', label: 'الجانب الأيمن (أمام)' },
+      { id: 'dash', label: 'طبلون السيارة' }
     ],
     sequentialMode: true,
     onPhotoTaken: (photos) => console.log('Mandatory entry photos:', photos.length),
@@ -182,6 +188,9 @@ export function renderEntryRegistration(container) {
   // Handle AI Plate Scan
   document.getElementById('scanPlateBtn')?.addEventListener('click', handlePlateScan)
 
+  // Handle AI Agreement Scan
+  document.getElementById('scanAgreementBtn')?.addEventListener('click', handleAgreementScan)
+
   // Handle Plate Search Input
   document.getElementById('plateSearchInput')?.addEventListener('input', handlePlateSearch)
 
@@ -203,6 +212,50 @@ export function renderEntryRegistration(container) {
     if (window.entryAdditionalPhotos) window.entryAdditionalPhotos.clear()
     const form = document.getElementById('entryForm')
     if (form) form.removeEventListener('submit', handleEntrySubmit)
+  }
+}
+
+async function handleAgreementScan() {
+  try {
+    const { Camera, CameraResultType, CameraSource } = await import('@capacitor/camera');
+    const image = await Camera.getPhoto({
+      quality: 60,
+      width: 1024,
+      allowEditing: false,
+      resultType: CameraResultType.Base64,
+      source: CameraSource.Camera
+    });
+
+    if (image && image.base64String) {
+      Toast.info('جاري قراءة رقم العقد...', 3000);
+      const result = await aiService.scanAgreement(image.base64String);
+
+      if (result && result.agreementNumber) {
+        const agreementNum = result.agreementNumber;
+        const { movements } = movementsStore.getState();
+
+        // Find movement by agreement number
+        const movement = movements.find(m =>
+          m.status === 'active' &&
+          m.exitDriver &&
+          (m.exitDriver.includes(agreementNum) || agreementNum.includes(m.exitDriver))
+        );
+
+        if (movement) {
+          const select = document.getElementById('entryCarSelect');
+          select.value = movement.carId;
+          handleCarSelection();
+          Toast.success(`تم العثور على العقد واختيار السيارة بنجاح`);
+        } else {
+          Toast.warning(`تم التعرف على الرقم ${agreementNum} ولكن لم يتم العثور على سيارة مرتبطة به بالخارج`);
+        }
+      } else {
+        Toast.error('لم نتمكن من العثور على رقم العقد في الصورة');
+      }
+    }
+  } catch (error) {
+    console.error('Agreement Scan UI Error:', error);
+    Toast.error('فشل تصوير العقد');
   }
 }
 
@@ -284,7 +337,7 @@ function handlePlateSearch(e) {
     availableCars.forEach(car => {
       const option = document.createElement('option');
       option.value = car.id;
-      option.textContent = `${car.model} - ${car.plate}`;
+      option.textContent = `${car.model} - ${car.plate || car.plateNumber}`;
       select.appendChild(option);
     });
   } else {
@@ -293,8 +346,9 @@ function handlePlateSearch(e) {
     const normalizedSearch = normalizePlate(searchValue);
 
     const filteredCars = availableCars.filter(car => {
-      const carNumbers = extractPlateNumbers(car.plate);
-      const normalizedCar = normalizePlate(car.plate);
+      const currentPlate = car.plate || car.plateNumber || '';
+      const carNumbers = extractPlateNumbers(currentPlate);
+      const normalizedCar = normalizePlate(currentPlate);
 
       // Match by numbers or normalized text
       return normalizedCar.includes(normalizedSearch) ||
@@ -309,7 +363,7 @@ function handlePlateSearch(e) {
       filteredCars.forEach(car => {
         const option = document.createElement('option');
         option.value = car.id;
-        option.textContent = `${car.model} - ${car.plate}`;
+        option.textContent = `${car.model} - ${car.plate || car.plateNumber}`;
         select.appendChild(option);
       });
 
@@ -371,7 +425,7 @@ function populateEntryCarSelect() {
   carsOut.forEach(car => {
     const option = document.createElement('option')
     option.value = car.id
-    option.textContent = `${car.model} - ${car.plate}`
+    option.textContent = `${car.model} - ${car.plate || car.plateNumber}`
     select.appendChild(option)
   })
 

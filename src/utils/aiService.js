@@ -88,6 +88,38 @@ export const aiService = {
     },
 
     /**
+     * Scan image for Agreement/Contract number via Cloud Proxy
+     */
+    scanAgreement: async (imageBase64) => {
+        try {
+            const prompt = "Find and extract the Agreement Number or Contract Number from this document. Return a JSON object with 'agreementNumber': string. Only return the number, no extra text.";
+
+            const response = await CapacitorHttp.post({
+                url: `${AI_PROXY_URL}/api/vision`,
+                headers: { 'Content-Type': 'application/json' },
+                data: { imageBase64, prompt }
+            });
+
+            if (response.status !== 200) {
+                throw new Error(response.data?.error || 'فشل التعرف على العقد');
+            }
+
+            const text = response.data.text;
+            try {
+                const jsonStr = text.match(/\{.*\}/s)?.[0] || '{"agreementNumber": ""}';
+                return JSON.parse(jsonStr);
+            } catch (e) {
+                // Fallback: search for first number sequence
+                const match = text.match(/\d+/);
+                return { agreementNumber: match ? match[0] : "" };
+            }
+        } catch (error) {
+            console.error('Agreement Scan Error:', error);
+            throw new Error(`فشل التعرف على رقم العقد: ${error.message}`);
+        }
+    },
+
+    /**
      * Analyze all car photos for comprehensive condition report
      * @param {Array} photos - Array of {id, data} objects
      * @param {string} type - 'exit' or 'return'
@@ -96,14 +128,14 @@ export const aiService = {
     analyzeCondition: async (photos, type) => {
         try {
             const slotLabels = {
-                front: 'الأمامية',
-                back: 'الخلفية',
-                right1: 'اليمين (1)',
-                right2: 'اليمين (2)',
-                left1: 'اليسار (1)',
-                left2: 'اليسار (2)',
-                interior: 'الداخلية',
-                dash: 'الطبلون'
+                front: 'الجهة الأمامية',
+                back: 'الجهة الخلفية',
+                right1: 'الجانب الأيمن (أمام)',
+                right2: 'الجانب الأيمن (خلف)',
+                left1: 'الجانب الأيسر (أمام)',
+                left2: 'الجانب الأيسر (خلف)',
+                interior: 'الجهة الداخلية',
+                dash: 'طبلون السيارة'
             };
 
             // Transform photos to API format
@@ -178,14 +210,14 @@ export const aiService = {
     compareAllPhotos: async (exitPhotos, returnPhotos) => {
         const results = [];
         const slotLabels = {
-            front: 'الأمامية',
-            back: 'الخلفية',
-            right1: 'اليمين (1)',
-            right2: 'اليمين (2)',
-            left1: 'اليسار (1)',
-            left2: 'اليسار (2)',
-            interior: 'الداخلية',
-            dash: 'الطبلون'
+            front: 'الجهة الأمامية',
+            back: 'الجهة الخلفية',
+            right1: 'الجانب الأيمن (أمام)',
+            right2: 'الجانب الأيمن (خلف)',
+            left1: 'الجانب الأيسر (أمام)',
+            left2: 'الجانب الأيسر (خلف)',
+            interior: 'الجهة الداخلية',
+            dash: 'طبلون السيارة'
         };
 
         for (const exitPhoto of exitPhotos) {

@@ -1,7 +1,7 @@
 {
   "name": "autocheck-pro-web",
   "private": true,
-  "version": "1.1.0",
+  "version": "1.2.0",
   "type": "module",
   "scripts": {
     "dev": "vite",
@@ -24,7 +24,8 @@
     "cordova-plugin-ftp": "^1.2.1",
     "firebase": "^12.8.0",
     "jspdf": "^4.0.0",
-    "jspdf-autotable": "^5.0.7"
+    "jspdf-autotable": "^5.0.7",
+    "xlsx": "^0.18.5"
   },
   "devDependencies": {
     "@capacitor/cli": "^8.0.1",
