@@ -29,29 +29,35 @@ export function renderSidebar(container) {
           <span class="text-xs font-bold text-slate-200 truncate">${user?.companyName || 'AutoCheck Pro'}</span>
         </div>
       </div>
-      <!-- User Info -->
-      <div class="px-6 py-4 mx-4 mb-6 bg-slate-800/50 rounded-2xl border border-slate-700/50 backdrop-blur-sm">
+      <!-- User Info (Simplified) -->
+      <div class="px-6 py-4 mx-4 mb-4 bg-slate-800/30 rounded-2xl border border-slate-700/30 backdrop-blur-sm">
         <div class="flex items-center gap-3">
-          <div class="w-10 h-10 rounded-full bg-slate-700 flex items-center justify-center border border-slate-600">
-            <i class="fas ${role === 'admin' ? 'fa-user-shield' : 'fa-user-lock'} text-slate-300"></i>
+          <div class="w-10 h-10 rounded-full bg-slate-700/50 flex items-center justify-center border border-slate-600/50 shadow-inner">
+            <i class="fas ${role === 'super_admin' ? 'fa-user-shield' : 'fa-user-lock'} text-slate-300"></i>
           </div>
-          <div class="flex-1">
-            <p class="text-sm font-bold text-white">${user?.name || 'مستخدم'}</p>
-            <button id="logoutBtn" class="text-[10px] text-red-400 hover:text-red-300 flex items-center gap-1 mt-0.5 transition">
-              <i class="fas fa-sign-out-alt"></i> تسجيل خروج
-            </button>
+          <div class="flex-1 min-w-0">
+            <p class="text-sm font-bold text-white truncate">${user?.name || 'مستخدم'}</p>
+            <p class="text-[10px] text-slate-400 font-medium uppercase tracking-tight">${role === 'super_admin' ? 'مدير النظام' : 'مفتش ميداني'}</p>
           </div>
         </div>
       </div>
 
       <!-- Navigation -->
-      <nav class="flex-1 px-4 space-y-1 overflow-y-auto" id="nav-links">
+      <nav class="flex-1 px-4 space-y-1 overflow-y-auto custom-scrollbar" id="nav-links">
         ${renderNavLinks(role)}
       </nav>
       
-      <!-- Footer -->
-      <div class="p-6 border-t border-slate-800 text-xs text-slate-500">
-        <p>AutoCheck Pro v3.0</p>
+      <!-- Bottom Section -->
+      <div class="p-4 border-t border-slate-800/80 bg-slate-900/50">
+        <button id="logoutBtn" class="w-full group flex items-center justify-center gap-3 bg-red-500/10 hover:bg-red-500/20 border border-red-500/20 text-red-500 py-3.5 rounded-2xl font-bold transition-all active:scale-95">
+          <i class="fas fa-sign-out-alt group-hover:-translate-x-1 transition-transform"></i>
+          <span>تسجيل الخروج</span>
+        </button>
+        
+        <div class="mt-4 flex justify-between items-center px-2 text-[10px] text-slate-500 font-medium">
+          <span>AutoCheck Pro</span>
+          <span class="opacity-50">v3.0.1</span>
+        </div>
       </div>
     </aside>
   `
@@ -129,7 +135,7 @@ function renderNavLinks(role) {
   `
 
   // Admin sees everything
-  if (role === 'admin') {
+  if (role === 'super_admin' || role === 'admin') {
     return adminLinks + guardLinks + commonLinks
   }
   // Guard sees only operations + common

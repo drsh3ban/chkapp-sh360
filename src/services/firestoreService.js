@@ -57,7 +57,11 @@ export const FirestoreService = {
         try {
             const carsRef = collection(db, 'companies', companyId, 'cars');
             const snapshot = await getDocs(carsRef);
-            return snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+            return snapshot.docs.map(doc => ({
+                id: doc.id,
+                ...doc.data(),
+                companyId: companyId // Resilience: Ensure companyId is always present
+            }));
         } catch (e) {
             console.error('Failed to get cars:', e);
             return [];

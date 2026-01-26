@@ -3,9 +3,9 @@ import { authStore } from './authStore'
 import { FirestoreService } from '../services/firestoreService'
 
 const defaultCars = [
-    { id: '1', plate: 'أ ب ج 1111', model: 'تويوتا هايلكس', status: 'in' },
-    { id: '2', plate: 'س ص ع 2222', model: 'هيونداي النترا', status: 'in' },
-    { id: '3', plate: 'د ذ ر 3333', model: 'فورد تورس', status: 'in' }
+    { id: '1', plate: 'أ ب ج 1111', model: 'تويوتا هايلكس', status: 'in', companyId: 'company_001' },
+    { id: '2', plate: 'س ص ع 2222', model: 'هيونداي النترا', status: 'in', companyId: 'company_001' },
+    { id: '3', plate: 'د ذ ر 3333', model: 'فورد تورس', status: 'in', companyId: 'company_001' }
 ]
 
 const savedCars = localStorage.getItem('autocheck_cars')
@@ -120,14 +120,16 @@ export const carsActions = {
     getCarsInside: () => {
         const companyId = authStore.getState().companyId;
         return carsStore.getState().cars.filter(car =>
-            (car.status === 'in' || car.status === 'available') && car.companyId === companyId
+            (car.status === 'in' || car.status === 'available') &&
+            (!car.companyId || car.companyId === companyId) // Resilient filter
         )
     },
 
     getCarsOutside: () => {
         const companyId = authStore.getState().companyId;
         return carsStore.getState().cars.filter(car =>
-            car.status === 'out' && car.companyId === companyId
+            car.status === 'out' &&
+            (!car.companyId || car.companyId === companyId) // Resilient filter
         )
     }
 }

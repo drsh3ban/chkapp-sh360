@@ -284,8 +284,7 @@ async function handlePlateScan() {
 function handlePlateSearch(e) {
   const searchValue = e.target.value.trim();
   const select = document.getElementById('exitCarSelect');
-  const { cars } = carsStore.getState();
-  const availableCars = cars.filter(c => c.status === 'in');
+  const availableCars = carsActions.getCarsInside();
 
   // Reset and repopulate
   select.innerHTML = '<option value="">-- اختر السيارة المتواجدة بالداخل --</option>';
@@ -321,7 +320,8 @@ function handlePlateSearch(e) {
       filteredCars.forEach(car => {
         const option = document.createElement('option');
         option.value = car.id;
-        option.textContent = `${car.model} - ${car.plate || car.plateNumber}`;
+        const plateStr = car.plateNumber || car.plate || '---';
+        option.textContent = `${car.model} - ${plateStr}`;
         select.appendChild(option);
       });
 
@@ -329,7 +329,8 @@ function handlePlateSearch(e) {
       if (filteredCars.length === 1) {
         select.value = filteredCars[0].id;
         select.dispatchEvent(new Event('change', { bubbles: true }));
-        Toast.success(`تم اختيار: ${filteredCars[0].model} - ${filteredCars[0].plate}`);
+        const plateStr = filteredCars[0].plateNumber || filteredCars[0].plate || '';
+        Toast.success(`تم اختيار: ${filteredCars[0].model} - ${plateStr}`);
       }
     }
   }
@@ -362,9 +363,7 @@ function populateExitCarSelect() {
   const select = document.getElementById('exitCarSelect')
   if (!select) return
 
-  const { cars } = carsStore.getState()
-  const availableCars = cars.filter(c => c.status === 'in')
-
+  const availableCars = carsActions.getCarsInside();
   const currentValue = select.value
 
   select.innerHTML = '<option value="">-- اختر السيارة المتواجدة بالداخل --</option>'
@@ -372,7 +371,8 @@ function populateExitCarSelect() {
   availableCars.forEach(car => {
     const option = document.createElement('option')
     option.value = car.id
-    option.textContent = `${car.model} - ${car.plate || car.plateNumber}`
+    const plateStr = car.plateNumber || car.plate || '---';
+    option.textContent = `${car.model} - ${plateStr}`
     select.appendChild(option)
   })
 

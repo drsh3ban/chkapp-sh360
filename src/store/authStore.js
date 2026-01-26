@@ -187,7 +187,14 @@ export const authActions = {
         // Clear other stores to prevent data leak
         import('./carsStore').then(m => m.carsStore.reset());
         import('./movementsStore').then(m => m.movementsStore.reset());
+
+        // Clear all persistent storage
         localStorage.removeItem('autocheck_auth');
+        localStorage.removeItem('autocheck_cars');
+        localStorage.removeItem('autocheck_movements');
+        localStorage.removeItem('autocheck_users');
+
+        console.log('User logged out and cache cleared');
     },
 
     /**
