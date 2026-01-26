@@ -343,6 +343,12 @@ export class PhotoCapture {
     }
 
     this.onPhotoTaken(this.getPhotos());
+
+    // Auto-trigger AI Scan for dashboard/odometer (Slot ID: 'dash')
+    if (this.onScan && (this.activeSlotId === 'dash' || this.activeSlotId === 'odometer')) {
+      this.onScan(photoRecord, this.activeSlotId);
+    }
+
     const container = document.getElementById(this.containerId).parentElement;
     this.render(container);
 

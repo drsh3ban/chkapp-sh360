@@ -340,11 +340,11 @@ async function handleExitAIAnalysis(photo, index) {
   try {
     Toast.info('جاري تحليل الصورة...', 2000);
     const odoResult = await aiService.scanOdometer(photo.data);
-    if (odoResult && odoResult.reading) {
+    if (odoResult && odoResult.reading && odoResult.reading !== "0") {
       const mileageInput = document.getElementById('exitMileage');
-      if (mileageInput && (!mileageInput.value || confirm(`هل تريد اعتماد قراءة العداد: ${odoResult.reading}؟`))) {
+      if (mileageInput) {
         mileageInput.value = odoResult.reading;
-        Toast.success('تم استخراج قراءة العداد بنجاح');
+        Toast.success(`تم تحديث العداد تلقائياً: ${odoResult.reading}`);
       }
     }
   } catch (e) { console.error(e) }
