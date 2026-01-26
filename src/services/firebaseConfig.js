@@ -3,14 +3,14 @@ import { getStorage } from "firebase/storage";
 import { getFirestore } from "firebase/firestore";
 import { getAuth } from "firebase/auth";
 
-// Firebase configuration from google-services.json
+// Firebase configuration from environment variables
 const firebaseConfig = {
-    apiKey: "AIzaSyCMzX3-11-d0CXJPzBlsvkwB-iNQrIcUC0",
-    authDomain: "chkapp-sh360.firebaseapp.com",
-    projectId: "chkapp-sh360",
-    storageBucket: "chkapp-sh360.firebasestorage.app",
-    messagingSenderId: "431562244942",
-    appId: "1:431562244942:android:a548104f06b3d6e3a9541f"
+    apiKey: import.meta.env.VITE_FIREBASE_API_KEY,
+    authDomain: import.meta.env.VITE_FIREBASE_AUTH_DOMAIN,
+    projectId: import.meta.env.VITE_FIREBASE_PROJECT_ID,
+    storageBucket: import.meta.env.VITE_FIREBASE_STORAGE_BUCKET,
+    messagingSenderId: import.meta.env.VITE_FIREBASE_MESSAGING_SENDER_ID,
+    appId: import.meta.env.VITE_FIREBASE_APP_ID
 };
 
 // Initialize Firebase
