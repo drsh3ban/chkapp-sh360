@@ -82,6 +82,6 @@ jobs:
       - name: Firebase App Distribution
         uses: w9jds/firebase-action@master
         with:
-          args: appdistribution:distribute android/app/build/outputs/apk/debug/app-debug.apk --app "1:431562244942:android:a548104f06b3d6e3a9541f" --groups "testers"
+          args: appdistribution:distribute android/app/build/outputs/apk/debug/app-debug.apk --app "1:431562244942:android:a548104f06b3d6e3a9541f"
         env:
           FIREBASE_TOKEN: ${{ secrets.Secret2 }}
