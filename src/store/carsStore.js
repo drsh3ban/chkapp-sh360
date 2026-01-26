@@ -120,7 +120,7 @@ export const carsActions = {
     getCarsInside: () => {
         const companyId = authStore.getState().companyId;
         return carsStore.getState().cars.filter(car =>
-            car.status === 'in' && car.companyId === companyId
+            (car.status === 'in' || car.status === 'available') && car.companyId === companyId
         )
     },
 
